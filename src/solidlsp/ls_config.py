@@ -38,6 +38,7 @@ class Language(str, Enum):
     KOTLIN = "kotlin"
     TYPESCRIPT = "typescript"
     GO = "go"
+    MQL4 = "mql4"
     RUBY = "ruby"
     DART = "dart"
     CPP = "cpp"
@@ -118,6 +119,8 @@ class Language(str, Enum):
                 return FilenameMatcher("*.rs")
             case self.GO:
                 return FilenameMatcher("*.go")
+            case self.MQL4:
+                return FilenameMatcher("*.mq4", "*.mqh")
             case self.RUBY:
                 return FilenameMatcher("*.rb", "*.erb")
             case self.RUBY_SOLARGRAPH:
@@ -217,6 +220,10 @@ class Language(str, Enum):
                 from solidlsp.language_servers.gopls import Gopls
 
                 return Gopls
+            case self.MQL4:
+                from solidlsp.language_servers.mql4_language_server import Mql4LanguageServer
+
+                return Mql4LanguageServer
             case self.RUBY:
                 from solidlsp.language_servers.ruby_lsp import RubyLsp
 

@@ -1,16 +1,42 @@
+# list of languages for which language servers are started; choose from:
+#   al               bash             clojure          cpp              csharp           csharp_omnisharp
+#   dart             elixir           elm              erlang           fortran          go
+#   haskell          java             julia            kotlin           lua              markdown
+#   nix              perl             php              python           python_jedi      r
+#   rego             ruby             ruby_solargraph  rust             scala            swift
+#   terraform        typescript       typescript_vts   yaml             zig
+# Note:
+#   - For C, use cpp
+#   - For JavaScript, use typescript
+# Special requirements:
+#   - csharp: Requires the presence of a .sln file in the project folder.
+# When using multiple languages, the first language server that supports a given file will be used for that file.
+# The first language is the default language and the respective language server will be used as a fallback.
+# Note that when using the JetBrains backend, language servers are not used and this list is correspondingly ignored.
+languages:
+- python
+- markdown
+- yaml
+- typescript
+
+# the encoding used by text files in the project
+# For a list of possible encodings, see https://docs.python.org/3.11/library/codecs.html#standard-encodings
+encoding: "utf-8"
+
+# whether to use the project's gitignore file to ignore files
+# Added on 2025-04-07
 ignore_all_files_in_gitignore: true
 
 # list of additional paths to ignore
 # same syntax as gitignore, so you can use * and **
 # Was previously called `ignored_dirs`, please update your config if you are using that.
-# Added (renamed)on 2025-04-07
+# Added (renamed) on 2025-04-07
 ignored_paths: []
 
 # whether the project is in read-only mode
 # If set to true, all editing tools will be disabled and attempts to use them will result in an error
 # Added on 2025-04-18
 read_only: false
-
 
 # list of tool names to exclude. We recommend not excluding any tools, see the readme for more details.
 # Below is the complete list of tools for convenience.
@@ -51,15 +77,49 @@ read_only: false
 #  * `think_about_task_adherence`: Thinking tool for determining whether the agent is still on track with the current task.
 #  * `think_about_whether_you_are_done`: Thinking tool for determining whether the task is truly completed.
 #  * `write_memory`: Writes a named memory (for future reference) to Serena's project-specific memory store.
-excluded_tools: []
+# Deshabilita tools de lectura/edición básica para forzar uso de simbólicos (evita que Claude las ignore)
+excluded_tools:
+- read_file          # Deja que use get_symbols_overview en su lugar
+- list_dir           # Prioriza search_for_pattern o find_symbol
+- execute_shell_command  # Deshabilita bash directo; usa onboarding para builds
+# - create_text_file
+# - delete_lines
 
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
-initial_prompt: ""
+initial_prompt: |
+  Eres un ingeniero de software senior experto en este código base.
 
-project_name: "serena"
-languages:
-- python
-- typescript
-included_optional_tools: []
-encoding: utf-8
+  REGLAS DE ARRANQUE OBLIGATORIAS (ejecútalas siempre al inicio de cada nueva conversación):
+  1. LO PRIMERO: ejecuta `activate_project` sin parámetros.
+  2. Luego ejecuta `get_current_config` para confirmar proyecto activo.
+  3. Si es necesario, ejecuta `onboarding`.
+  4. Nunca respondas al usuario hasta completar 1-3.
+
+  REGLAS INQUEBRANTABLES:
+  • NUNCA uses herramientas nativas de Claude para leer, buscar o editar código.
+  • Usa EXCLUSIVAMENTE herramientas de Serena MCP.
+  • Edición solo con: insert_at_line, replace_lines, insert_after_symbol, replace_symbol_body.
+  • Antes de editar: siempre explora con get_symbols_overview / find_referencing_symbols.
+
+  Si intentas usar Update, Bash, sed, create_text_file o cualquier vía no-MCP → detente y reintenta con herramientas de Serena.
+
+# Opcional: Incluye tools de "pensamiento" para auto-check
+included_optional_tools:
+- think_about_task_adherence  # Fuerza chequeos como "¿Estoy usando Serena?"
+- get_current_config
+- initial_instructions
+
+- replace_symbol_body
+- insert_at_line
+- insert_after_symbol
+- insert_before_symbol
+- replace_lines
+- create_text_file
+- delete_lines
+- list_dir
+- read_file
+- replace_content
+- switch_modes
+
+project_name: "serena-mql4"
