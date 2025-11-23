@@ -223,6 +223,9 @@ class Tool(Component):
         """
         Applies the tool with logging and exception handling, using the given keyword arguments
         """
+        # Filter out MCP-specific parameters that are not used by Serena tools
+        kwargs.pop('max_tokens', None)  # MCP compatibility parameter (not used by Serena)
+        kwargs.pop('max_output_tokens', None)  # MCP compatibility parameter (not used by Serena)
 
         def task() -> str:
             apply_fn = self.get_apply_fn()
