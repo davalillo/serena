@@ -37,6 +37,8 @@ With Serena, we provide direct, out-of-the-box support for:
 * **Kotlin**  
   (uses the pre-alpha [official kotlin LS](https://github.com/Kotlin/kotlin-lsp), some issues may appear)
 * **Lua**
+* **MQL4**  
+  (MQL4/MQL5 language for MetaTrader 4/5 trading platforms)
 * **Markdown**  
   (must be explicitly specified via `--language markdown` when generating project config, primarily useful for documentation-heavy projects)
 * **Nix**  
