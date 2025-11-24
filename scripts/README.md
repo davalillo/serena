@@ -11,7 +11,7 @@ Script completo para desarrollo del MQL4 LSP que:
 1. **Busca y elimina procesos mql4-lsp-server** en ejecución (útil para limpiar procesos zombi)
 2. **Elimina completamente** el directorio `~/.serena/language_servers/static/Mql4LanguageServer/`
 3. **Obtiene el MQL4 LSP**:
-   - **Primero** intenta usar `./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server` (build local)
+   - **Primero** intenta usar `/home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server/mql4-lsp-server` (build local)
    - **Si no existe** pide confirmación para descargar desde GitHub releases v1.3.0
    - **Descarga automáticamente** según la plataforma (Linux x64, macOS x64/arm64, Windows x64)
 4. **Verifica la versión** ejecutando `--version` al final
@@ -30,7 +30,7 @@ Script completo para desarrollo del MQL4 LSP que:
 
 **Flujo de trabajo:**
 ```
-1. Script busca build local
+1. Script busca build local en /home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server
 2. Si no existe, pregunta: "¿Descargar desde GitHub? (y/N)"
 3. Si 'y', detecta plataforma y descarga v1.3.0
 4. Copia a ~/.serena
@@ -39,7 +39,7 @@ Script completo para desarrollo del MQL4 LSP que:
 
 **Salida esperada (build local):**
 ```
-[INFO] Archivo local encontrado: ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
+[INFO] Archivo local encontrado: /home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server/mql4-lsp-server
 [INFO] Usando build local...
 [INFO] Paso 4: Verificando versión instalada...
 ---
@@ -64,7 +64,7 @@ MQL4 Language Server v1.3.0
 
 Script simple para copiar solo el archivo del LSP:
 
-1. **Copia el binary** desde `./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server`
+1. **Copia el binary** desde `/home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server/mql4-lsp-server`
 2. **Lo coloca en** `~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/`
 3. **Mantiene permisos** ejecutables
 4. **Verifica la versión** ejecutando `./mql4-lsp-server --version` al final
@@ -95,14 +95,14 @@ MQL4 Language Server v1.4.0-dev
 
 1. **Compilar el MQL4 LSP** primero:
    ```bash
-   cd src/mql4-lsp-server
+   cd /home/guillermo/source/mql4-language-server
    dotnet build -c Release
    dotnet publish -c Release -r linux-x64 --self-contained false
    ```
 
 2. **Verificar el directorio de salida:**
    ```
-   ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
+   /home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server/mql4-lsp-server
    ```
 
 ### Opción: Descarga desde GitHub
@@ -230,7 +230,7 @@ pkill -9 mql4-lsp-server
 ls -lh ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server
 
 # Comparar con la versión local
-ls -lh ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
+ls -lh /home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server/mql4-lsp-server
 ```
 
 ### La verificación de versión falla o no muestra nada:
@@ -275,7 +275,7 @@ stat ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-serv
 
 # O comprobar hash del archivo
 md5sum ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server
-md5sum ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
+md5sum /home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server/mql4-lsp-server
 ```
 
 Los hashes deben coincidir si se copió correctamente.
@@ -292,7 +292,7 @@ Los hashes deben coincidir si se copió correctamente.
 Si tu directorio de build es diferente, edita la variable `SOURCE_DIR` en los scripts:
 
 ```bash
-SOURCE_DIR="./src/bin/Release/net10.0/publish/linux-x64"
+SOURCE_DIR="/home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server"
 # Cambiar a tu directorio
 SOURCE_DIR="/ruta/a/tu/build/directory"
 ```
