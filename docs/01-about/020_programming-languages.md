@@ -37,8 +37,19 @@ With Serena, we provide direct, out-of-the-box support for:
 * **Kotlin**  
   (uses the pre-alpha [official kotlin LS](https://github.com/Kotlin/kotlin-lsp), some issues may appear)
 * **Lua**
-* **MQL4**  
+* **MQL4**
   (MQL4/MQL5 language for MetaTrader 4/5 trading platforms)
+
+  > ⚠️ **Warning**: MQL4 support is experimental. The MQL4 LSP v1.3.0 has critical parsing limitations and **cannot handle real-world MQL4 code**. It only works with simplified test code. Parsing fails on:
+  > - Preprocessor directives (#if, #define, #endif)
+  > - C-style logical operators (&&, ||)
+  > - Complex struct definitions
+  > - Ternary operators (? :)
+  > - Type casting
+  > - Multi-dimensional arrays
+  >
+  > Do not use MQL4 in production. See [MQL4_LSP_ANALYSIS.md](https://github.com/oraios/serena/blob/main/MQL4_LSP_ANALYSIS.md) for details.
+  > Consider migrating to MQL5 which has better LSP support.
 * **Markdown**  
   (must be explicitly specified via `--language markdown` when generating project config, primarily useful for documentation-heavy projects)
 * **Nix**  

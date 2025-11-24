@@ -70,6 +70,8 @@ Language servers provide support for a wide range of programming languages.
 With Serena's LSP library, we provide **support for over 31 programming languages**, including
 AL, Bash, C#, C/C++, Clojure, Dart, Elixir, Elm, Erlang, Fortran, Go, Haskell, Java, Javascript, Julia, Kotlin, MQL4, Lua, Markdown, Nix, Perl, PHP, Python, R, Ruby, Rust, Scala, Swift, TypeScript, YAML and Zig.
 
+> ⚠️ **Note**: MQL4 support is experimental and has critical parsing limitations. See the [Language Support](https://oraios.github.io/serena/01-about/020_programming-languages.html) page for details.
+
 > [!IMPORTANT]
 > Some languages require additional dependencies to be installed; see the [Language Support](https://oraios.github.io/serena/01-about/020_programming-languages.html) page for details.
 
