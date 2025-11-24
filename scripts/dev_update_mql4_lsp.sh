@@ -103,6 +103,19 @@ ls -lh "$MQL4_LSP_DIR/mql4-lsp/mql4-lsp-server"
 
 print_info "Archivo copiado exitosamente"
 
+# 4. Verificar versión
+echo ""
+print_info "Paso 4: Verificando versión instalada..."
+DEST_FILE="$MQL4_LSP_DIR/mql4-lsp/mql4-lsp-server"
+if [ -f "$DEST_FILE" ]; then
+    print_info "Ejecutando $DEST_FILE --version"
+    echo "---"
+    "$DEST_FILE" --version
+    echo "---"
+else
+    print_error "Error: No se puede verificar la versión. Archivo no encontrado: $DEST_FILE"
+fi
+
 echo ""
 echo "======================================"
 print_info "¡Actualización completada!"

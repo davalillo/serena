@@ -11,6 +11,7 @@ Script completo para desarrollo del MQL4 LSP que:
 1. **Busca y elimina procesos mql4-lsp-server** en ejecución (útil para limpiar procesos zombi)
 2. **Elimina completamente** el directorio `~/.serena/language_servers/static/Mql4LanguageServer/`
 3. **Copia la nueva versión** desde `./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server`
+4. **Verifica la versión** ejecutando `./mql4-lsp-server --version` al final
 
 **Uso:**
 ```bash
@@ -21,6 +22,16 @@ Script completo para desarrollo del MQL4 LSP que:
 - Después de hacer cambios significativos en el LSP
 - Si hay procesos zombi del LSP anterior
 - Para garantizar una instalación completamente limpia
+- Para verificar qué versión se instaló
+
+**Salida esperada:**
+```
+[INFO] Paso 4: Verificando versión instalada...
+[INFO] Ejecutando ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server --version
+---
+MQL4 Language Server v1.4.0-dev
+---
+```
 
 ### `dev_copy_mql4_lsp.sh`
 
@@ -29,6 +40,7 @@ Script simple para copiar solo el archivo del LSP:
 1. **Copia el binary** desde `./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server`
 2. **Lo coloca en** `~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/`
 3. **Mantiene permisos** ejecutables
+4. **Verifica la versión** ejecutando `./mql4-lsp-server --version` al final
 
 **Uso:**
 ```bash
@@ -39,6 +51,16 @@ Script simple para copiar solo el archivo del LSP:
 - Para actualizaciones rápidas durante desarrollo
 - Si solo cambió el binary, no la estructura
 - Cuando no hay procesos zombi
+- Para verificar la versión copiada
+
+**Salida esperada:**
+```
+[INFO] Verificando versión instalada...
+[INFO] Ejecutando ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server --version
+---
+MQL4 Language Server v1.4.0-dev
+---
+```
 
 ## Requisitos
 
@@ -152,6 +174,53 @@ ls -lh ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-se
 # Comparar con la versión local
 ls -lh ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
 ```
+
+### La verificación de versión falla o no muestra nada:
+
+```bash
+# Ejecutar manualmente para ver el error
+~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server --version
+
+# Si el binary no responde, verificar permisos
+chmod +x ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server
+
+# Verificar que es realmente un executable
+file ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server
+```
+
+## Verificación de versión
+
+Los scripts ejecutan automáticamente `--version` al final para confirmar que se instaló correctamente.
+
+### Interpretar la salida:
+
+**Versión instalada correctamente:**
+```
+---
+MQL4 Language Server v1.4.0-dev
+Build: 2024-11-24
+---
+```
+
+**Si no muestra nada o da error:**
+- El binary podría estar corrupto
+- Compilar de nuevo con `dotnet clean && dotnet build -c Release -r linux-x64`
+- Verificar que el archivo se copió correctamente
+
+**Para versiones sin --version flag:**
+
+Si tu LSP no soporta `--version`, puedes usar:
+
+```bash
+# Ver fecha de compilación
+stat ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server
+
+# O comprobar hash del archivo
+md5sum ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server
+md5sum ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
+```
+
+Los hashes deben coincidir si se copió correctamente.
 
 ## Notas
 

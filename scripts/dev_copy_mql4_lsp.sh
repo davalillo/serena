@@ -38,6 +38,14 @@ echo -e "${GREEN}[INFO]${NC} Copiando archivo..."
 cp "$SOURCE_FILE" "$DEST_FILE"
 chmod +x "$DEST_FILE"
 
+# Verificar versión
+echo ""
+echo -e "${GREEN}[INFO]${NC} Verificando versión instalada..."
+echo -e "${GREEN}[INFO]${NC} Ejecutando $DEST_FILE --version"
+echo "---"
+"$DEST_FILE" --version
+echo "---"
+
 echo ""
 echo -e "${GREEN}[INFO]${NC} ¡Copiado exitosamente!"
 echo -e "${GREEN}[INFO]${NC} Destino: $DEST_FILE"
