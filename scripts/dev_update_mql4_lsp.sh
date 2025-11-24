@@ -66,36 +66,123 @@ fi
 
 echo ""
 
-# 3. Copiar nueva versión desde el directorio de build
-print_info "Paso 3: Copiando nueva versión desde directorio de build..."
+# 3. Obtener MQL4 LSP (local o desde GitHub)
+print_info "Paso 3: Obteniendo MQL4 LSP..."
 
 SOURCE_DIR="./src/bin/Release/net10.0/publish/linux-x64"
 SOURCE_FILE="$SOURCE_DIR/mql4-lsp-server"
+DOWNLOAD_NEEDED=false
 
-if [ ! -d "$SOURCE_DIR" ]; then
-    print_error "El directorio de build no existe: $SOURCE_DIR"
-    print_error "Asegúrate de haber compilado el proyecto primero"
-    exit 1
+# Intentar usar archivo local compilado
+if [ -d "$SOURCE_DIR" ] && [ -f "$SOURCE_FILE" ]; then
+    print_info "Archivo local encontrado: $SOURCE_FILE"
+    print_info "Usando build local..."
+else
+    print_warn "No se encontró build local en: $SOURCE_DIR"
+    echo ""
+
+    # Preguntar si descargar desde GitHub
+    read -p "¿Quieres descargar MQL4 LSP v1.3.0 desde GitHub releases? (y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        DOWNLOAD_NEEDED=true
+        print_info "Descargando MQL4 LSP desde GitHub..."
+    else
+        print_error "Descarga cancelada por el usuario"
+        print_error "Para compilar localmente:"
+        print_error "  cd src/mql4-lsp-server"
+        print_error "  dotnet build -c Release -r linux-x64"
+        print_error "  dotnet publish -c Release -r linux-x64 --self-contained false"
+        exit 1
+    fi
 fi
-
-if [ ! -f "$SOURCE_FILE" ]; then
-    print_error "El archivo no existe: $SOURCE_FILE"
-    print_error "Asegúrate de haber compilado para linux-x64"
-    exit 1
-fi
-
-print_info "Archivo fuente encontrado: $SOURCE_FILE"
 
 # Crear directorio destino
 print_info "Creando directorio destino..."
 mkdir -p "$(dirname "$MQL4_LSP_DIR/mql4-lsp/mql4-lsp-server")"
 
+# Si necesita descargar, hacerlo
+if [ "$DOWNLOAD_NEEDED" = true ]; then
+    # Detectar plataforma
+    PLATFORM=$(uname -s)
+    ARCH=$(uname -m)
+
+    # Determinar URL según plataforma
+    case "$PLATFORM" in
+        Linux)
+            if [ "$ARCH" = "x86_64" ]; then
+                DOWNLOAD_URL="https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-linux-x64"
+                BINARY_NAME="mql4-lsp-server"
+            elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+                print_error "Plataforma Linux ARM64 no soportada en v1.3.0"
+                print_error "Compila localmente o usa Linux x64"
+                exit 1
+            else
+                print_error "Arquitectura $ARCH no soportada"
+                exit 1
+            fi
+            ;;
+        Darwin)
+            if [ "$ARCH" = "x86_64" ]; then
+                DOWNLOAD_URL="https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-osx-x64"
+                BINARY_NAME="mql4-lsp-server"
+            elif [ "$ARCH" = "arm64" ]; then
+                DOWNLOAD_URL="https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-osx-arm64"
+                BINARY_NAME="mql4-lsp-server"
+            else
+                print_error "Arquitectura macOS $ARCH no soportada"
+                exit 1
+            fi
+            ;;
+        CYGWIN*|MINGW*|MSYS*)
+            DOWNLOAD_URL="https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-win-x64.exe"
+            BINARY_NAME="mql4-lsp-server.exe"
+            ;;
+        *)
+            print_error "Plataforma $PLATFORM no soportada"
+            exit 1
+            ;;
+    esac
+
+    # Crear directorio temporal
+    TEMP_DIR=$(mktemp -d)
+    print_info "Descargando en directorio temporal: $TEMP_DIR"
+
+    # Descargar archivo
+    if command -v curl &> /dev/null; then
+        print_info "Descargando desde: $DOWNLOAD_URL"
+        curl -L -o "$TEMP_DIR/$BINARY_NAME" "$DOWNLOAD_URL"
+    elif command -v wget &> /dev/null; then
+        print_info "Descargando desde: $DOWNLOAD_URL"
+        wget -O "$TEMP_DIR/$BINARY_NAME" "$DOWNLOAD_URL"
+    else
+        print_error "No se encontró curl ni wget para descargar"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+
+    # Verificar descarga
+    if [ ! -f "$TEMP_DIR/$BINARY_NAME" ]; then
+        print_error "Error: La descarga falló"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+
+    print_info "Descarga completada"
+    SOURCE_FILE="$TEMP_DIR/$BINARY_NAME"
+fi
+
 # Copiar archivo
-print_info "Copiando archivo..."
+print_info "Copiando archivo a ~/.serena..."
 cp "$SOURCE_FILE" "$MQL4_LSP_DIR/mql4-lsp/mql4-lsp-server"
 
 # Hacer ejecutable
 chmod +x "$MQL4_LSP_DIR/mql4-lsp/mql4-lsp-server"
+
+# Limpiar archivo temporal si se descargó
+if [ "$DOWNLOAD_NEEDED" = true ]; then
+    rm -rf "$TEMP_DIR"
+fi
 
 # Verificar permisos
 print_info "Verificando permisos..."

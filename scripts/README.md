@@ -10,8 +10,11 @@ Script completo para desarrollo del MQL4 LSP que:
 
 1. **Busca y elimina procesos mql4-lsp-server** en ejecución (útil para limpiar procesos zombi)
 2. **Elimina completamente** el directorio `~/.serena/language_servers/static/Mql4LanguageServer/`
-3. **Copia la nueva versión** desde `./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server`
-4. **Verifica la versión** ejecutando `./mql4-lsp-server --version` al final
+3. **Obtiene el MQL4 LSP**:
+   - **Primero** intenta usar `./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server` (build local)
+   - **Si no existe** pide confirmación para descargar desde GitHub releases v1.3.0
+   - **Descarga automáticamente** según la plataforma (Linux x64, macOS x64/arm64, Windows x64)
+4. **Verifica la versión** ejecutando `--version` al final
 
 **Uso:**
 ```bash
@@ -22,14 +25,38 @@ Script completo para desarrollo del MQL4 LSP que:
 - Después de hacer cambios significativos en el LSP
 - Si hay procesos zombi del LSP anterior
 - Para garantizar una instalación completamente limpia
+- Para instalar LSP sin compilar localmente
 - Para verificar qué versión se instaló
 
-**Salida esperada:**
+**Flujo de trabajo:**
 ```
+1. Script busca build local
+2. Si no existe, pregunta: "¿Descargar desde GitHub? (y/N)"
+3. Si 'y', detecta plataforma y descarga v1.3.0
+4. Copia a ~/.serena
+5. Verifica versión con --version
+```
+
+**Salida esperada (build local):**
+```
+[INFO] Archivo local encontrado: ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
+[INFO] Usando build local...
 [INFO] Paso 4: Verificando versión instalada...
-[INFO] Ejecutando ~/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp/mql4-lsp-server --version
 ---
 MQL4 Language Server v1.4.0-dev
+---
+```
+
+**Salida esperada (descarga desde GitHub):**
+```
+[WARN] No se encontró build local
+¿Quieres descargar MQL4 LSP v1.3.0 desde GitHub releases? (y/N): y
+[INFO] Descargando MQL4 LSP desde GitHub...
+[INFO] Descargando desde: https://github.com/...
+[INFO] Descarga completada
+[INFO] Paso 4: Verificando versión instalada...
+---
+MQL4 Language Server v1.3.0
 ---
 ```
 
@@ -77,6 +104,37 @@ MQL4 Language Server v1.4.0-dev
    ```
    ./src/bin/Release/net10.0/publish/linux-x64/mql4-lsp-server
    ```
+
+### Opción: Descarga desde GitHub
+
+Si no tienes el código fuente del LSP compilado, puedes descargar la versión oficial v1.3.0:
+
+**Plataformas soportadas:**
+- Linux x64
+- macOS x64 (Intel)
+- macOS Arm64 (Apple Silicon)
+- Windows x64
+
+**El script `dev_update_mql4_lsp.sh` lo hace automáticamente:**
+1. Intenta usar build local
+2. Si no existe, pregunta si descargar
+3. Descarga automáticamente según tu plataforma
+4. Lo instala en `~/.serena/`
+
+**Descarga manual:**
+```bash
+# Linux x64
+curl -L -o mql4-lsp-server https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-linux-x64
+
+# macOS x64
+curl -L -o mql4-lsp-server https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-osx-x64
+
+# macOS Arm64
+curl -L -o mql4-lsp-server https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-osx-arm64
+
+# Windows x64
+curl -L -o mql4-lsp-server.exe https://github.com/davalillo/mql4-language-server/releases/download/v1.3.0/mql4-lsp-server-win-x64.exe
+```
 
 ### Para ejecutar los scripts:
 
