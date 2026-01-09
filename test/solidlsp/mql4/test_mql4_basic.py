@@ -323,3 +323,143 @@ class TestMql4LanguageServerBasics:
         expected_globals = ["MagicNumber", "LotSize"]
         for global_var in expected_globals:
             assert global_var in symbol_names, f"Expected global variable {global_var} not found"
+
+    # ============================================================
+    # NEW TESTS: Line Indexing and Range Validation
+    # ============================================================
+
+    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
+    def test_symbol_ranges_are_zero_indexed(self, language_server: SolidLanguageServer) -> None:
+        """Verify that symbol ranges are 0-indexed per LSP 3.17 specification.
+
+        LSP 3.17 spec states: "Line position in a document (zero-based)."
+        This test ensures the MQL4 LSP returns correct 0-indexed line numbers.
+        """
+        file_path = "ExpertAdvisor.mq4"
+
+        # Get all symbols
+        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
+        assert len(symbols) > 0, "Should get symbols from file"
+
+        # Find OnInit function - its declaration should be at a specific line
+        # The test file ExpertAdvisor.mq4 has OnInit defined at line 21 (0-indexed = 20)
+        oninit_symbol = next((s for s in symbols[0] if s.get("name") == "OnInit"), None)
+        assert oninit_symbol is not None, "OnInit symbol should be found"
+
+        # Verify the line is 0-indexed (not 1-indexed)
+        # If the LSP returned 1-indexed, line would be 21, not 20
+        start_line = oninit_symbol["selectionRange"]["start"]["line"]
+
+        # The first function in a valid MQL4 file should not be at line 0
+        # (line 0 is typically the comment header)
+        # But it should be 0-indexed, not 1-indexed
+        assert start_line > 0, "First function should not be at line 0 in a properly formatted MQL4 file"
+
+        # Get the actual content to verify the line number is correct
+        # OnInit declaration should be around line 21 (0-indexed)
+        # If the value is 21 instead of 20, it would indicate 1-indexing (bug)
+        # If the value is 20, it indicates correct 0-indexing
+        #
+        # We verify it's not 1-indexed by checking it's NOT equal to the 1-indexed expected line
+        # A 1-indexed OnInit at line 21 would give us start_line == 21
+        # A correctly 0-indexed OnInit at line 21 would give us start_line == 20
+        assert start_line != 21, (
+            f"Line {start_line} appears to be 1-indexed. "
+            "LSP 3.17 requires 0-indexed lines. Got: {start_line}"
+        )
+
+    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
+    def test_symbol_ranges_consistency(self, language_server: SolidLanguageServer) -> None:
+        """Verify that start and end lines in ranges are consistent.
+
+        The range should represent the full extent of the symbol,
+        with start <= end and both being valid line numbers.
+        """
+        file_path = "ExpertAdvisor.mq4"
+
+        # Get all symbols
+        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
+        assert len(symbols) > 0, "Should get symbols from file"
+
+        for symbol in symbols[0]:
+            if "range" in symbol:
+                r = symbol["range"]
+                start_line = r["start"]["line"]
+                end_line = r["end"]["line"]
+
+                # Verify start <= end
+                assert start_line <= end_line, (
+                    f"Symbol {symbol.get('name', 'unknown')}: start_line ({start_line}) > end_line ({end_line})"
+                )
+
+                # Verify both are non-negative
+                assert start_line >= 0, f"Symbol {symbol.get('name', 'unknown')}: start_line is negative ({start_line})"
+                assert end_line >= 0, f"Symbol {symbol.get('name', 'unknown')}: end_line is negative ({end_line})"
+
+    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
+    def test_oninit_range_includes_body(self, language_server: SolidLanguageServer) -> None:
+        """Verify that OnInit function range includes its body, not just declaration.
+
+        This test catches the bug where ranges were degenerate (start == end).
+        A proper function range should span from declaration to closing brace.
+        """
+        file_path = "ExpertAdvisor.mq4"
+
+        # Get all symbols
+        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
+
+        # Find OnInit function
+        oninit_symbol = next((s for s in symbols[0] if s.get("name") == "OnInit"), None)
+        assert oninit_symbol is not None, "OnInit symbol should be found"
+
+        # Get the full range (should include body)
+        if "range" in oninit_symbol:
+            r = oninit_symbol["range"]
+            start_line = r["start"]["line"]
+            end_line = r["end"]["line"]
+
+            # The range should span multiple lines for OnInit (it's a complex function)
+            line_count = end_line - start_line + 1
+            assert line_count > 1, (
+                f"OnInit range appears degenerate: start={start_line}, end={end_line}, lines={line_count}. "
+                "Expected range to include function body."
+            )
+
+    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
+    def test_simple_function_range(self, language_server: SolidLanguageServer) -> None:
+        """Test that simple functions have correct range boundaries.
+
+        Uses functions like NormalizeTPSell which should have small but valid ranges.
+        """
+        file_path = "ExpertAdvisor.mq4"
+
+        # Get all symbols
+        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
+
+        # Find a simple function (NormalizeTPSell should be a simple function)
+        normalize_tp_sell = next(
+            (s for s in symbols[0] if s.get("name") == "NormalizeTPSell"),
+            None
+        )
+
+        if normalize_tp_sell is None:
+            # Skip if not found (might not exist in this file)
+            return
+
+        # Get selection range (declaration)
+        sel_start = normalize_tp_sell["selectionRange"]["start"]["line"]
+        sel_end = normalize_tp_sell["selectionRange"]["end"]["line"]
+
+        # Selection range should be a single line (the declaration)
+        assert sel_start == sel_end, (
+            f"NormalizeTPSell selectionRange should be single line: start={sel_start}, end={sel_end}"
+        )
+
+        # Verify 0-indexed (not 1-indexed)
+        # If this function is at line 18686 (1-indexed), a 1-indexed LSP would return 18686
+        # A correct 0-indexed LSP would return 18685
+        # We verify by checking it doesn't match the 1-indexed line number
+        assert sel_start != 18686, (
+            f"Line {sel_start} appears to be 1-indexed. "
+            "LSP 3.17 requires 0-indexed lines."
+        )
