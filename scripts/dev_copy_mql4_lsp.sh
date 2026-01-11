@@ -33,6 +33,12 @@ ls -lh "$SOURCE_FILE"
 echo -e "${GREEN}[INFO]${NC} Creando directorio destino..."
 mkdir -p "$DEST_DIR"
 
+# Borrar archivo destino si existe
+if [ -f "$DEST_FILE" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Archivo destino existe, borrándolo..."
+    rm -f "$DEST_FILE"
+fi
+
 # Copiar archivo
 echo -e "${GREEN}[INFO]${NC} Copiando archivo..."
 cp "$SOURCE_FILE" "$DEST_FILE"
