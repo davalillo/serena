@@ -298,7 +298,7 @@ class TestMql4LanguageServerRenameSymbol:
 
 
 @pytest.mark.mql4
-    class TestMql4LanguageServerDiagnostics:
+class TestMql4LanguageServerDiagnostics:
         """Test textDocument/diagnostic LSP method."""
 
         @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
