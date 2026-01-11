@@ -6,11 +6,9 @@ like request_references, request_definition, and request_document_symbols
 using the test repository.
 """
 
-import os
 
 import pytest
 
-from serena.text_utils import LineType
 from solidlsp import SolidLanguageServer
 from solidlsp.ls_config import Language
 
