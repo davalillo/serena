@@ -1,7 +1,5 @@
 import logging
-import logging
 import os
-from pathlib import Path
 from pathlib import Path
 
 import pytest
@@ -111,6 +109,7 @@ def language_server(request: LanguageParamRequest):
 
     """
     import subprocess
+
     from solidlsp.ls_config import Language
 
     if not hasattr(request, "param"):
@@ -122,8 +121,8 @@ def language_server(request: LanguageParamRequest):
     if language == Language.MQL4:
         try:
             # Get MQL4 LSP executable path (same logic as in Mql4LanguageServer)
-            from solidlsp.settings import SolidLSPSettings
             from solidlsp.ls_config import SERENA_MANAGED_DIR_IN_HOME, SERENA_MANAGED_DIR_NAME
+            from solidlsp.settings import SolidLSPSettings
 
             mql4_ls_dir = os.path.join(
                 SolidLSPSettings(solidlsp_dir=SERENA_MANAGED_DIR_IN_HOME, project_data_relative_path=SERENA_MANAGED_DIR_NAME).get_solidlsp_dir(),
@@ -135,7 +134,7 @@ def language_server(request: LanguageParamRequest):
             try:
                 result = subprocess.run(
                     [mql4_ls_executable_path, "--version"],
-                    capture_output=True,
+                    check=False, capture_output=True,
                     text=True,
                     timeout=5
                 )
@@ -146,7 +145,7 @@ def language_server(request: LanguageParamRequest):
                 print(f"{'='*60}\n")
             except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError) as e:
                 print(f"\n{'='*60}")
-                print(f"MQL4 LSP: Could not get version (binary may not exist or be inaccessible)")
+                print("MQL4 LSP: Could not get version (binary may not exist or be inaccessible)")
                 print(f"Expected path: {mql4_ls_executable_path}")
                 print(f"Error: {e}")
                 print(f"{'='*60}\n")

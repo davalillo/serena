@@ -304,7 +304,7 @@ class TestMql4LanguageServerDiagnostics:
             """Test getting diagnostics for a valid MQL4 file returns no errors."""
             # SKIPPING: MQL4 LSP has instability issues with textDocument/diagnostic
             # Re-enable when LSP is stable
-            pytest.skip("MQL4 LSP has instability issues with textDocument/diagnostic")
+            # pytest.skip("MQL4 LSP has instability issues with textDocument/diagnostic")
 
             import signal
 
