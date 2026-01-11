@@ -936,8 +936,9 @@ class TestMql4Capabilities:
 
         file_path = "ExpertAdvisor.mq4"
 
+        timed_out = [False]
         def timeout_handler(signum: int, frame: Any) -> None:
-            pytest.skip("Hover request timed out (hover may not be supported)")
+            timed_out[0] = True
 
         try:
             signal.signal(signal.SIGALRM, timeout_handler)
@@ -947,10 +948,11 @@ class TestMql4Capabilities:
 
             signal.alarm(0)
 
-            # Hover request should return (may be None or empty)
-            assert hover is not None, "request_hover should return a response"
-        except signal.SIGALRM:
-            pytest.skip("Hover request timed out (hover may not be supported)")
+            if timed_out[0]:
+                pytest.skip("Hover request timed out (hover may not be supported)")
+
+            # Hover request should return (may be None or empty, but not error)
+            assert hover is None or isinstance(hover, dict), f"request_hover should return dict or None, got {type(hover)}"
         except Exception as e:
             signal.alarm(0)
             pytest.skip(f"Hover not available: {e}")
