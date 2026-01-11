@@ -70,7 +70,7 @@ echo ""
 print_info "Paso 3: Obteniendo MQL4 LSP..."
 
 SOURCE_DIR="/home/guillermo/source/mql4-language-server/src/bin/Release/net10.0/publish/linux-x64"
-SOURCE_FILE="$SOURCE_DIR/mql4-lsp-server"
+SOURCE_FILE="$SOURCE_DIR/mql4-lsp-server-linux-x64"
 DOWNLOAD_NEEDED=false
 
 # Intentar usar archivo local compilado

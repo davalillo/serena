@@ -347,61 +347,6 @@ class TestMql4LanguageServerTextOperations:
 
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_delete_text_between_positions(self, language_server: SolidLanguageServer) -> None:
-        """Test deleting text between two positions."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Get content first to find deletable text
-        content = language_server.retrieve_full_file_content(file_path)
-        lines = content.split("\n") if content else []
-
-        if len(lines) < 3:
-            pytest.skip("File too short for delete test")
-
-        # Delete a line in the middle (find a comment or empty line)
-        # We'll try to delete from line 2 to line 3
-        # Method signature: delete_text_between_positions(file, start: Position, end: Position) -> str
-        delete_start = {"line": 2, "character": 0}
-        delete_end = {"line": 3, "character": 0}
-
-        # This will modify the file, so we need to be careful
-        # Just verify the method exists and can be called
-        # (Actual modification tests would need cleanup)
-        try:
-            result = language_server.delete_text_between_positions(file_path, delete_start, delete_end)
-            # Should return the deleted text
-            assert isinstance(result, str), "Should return deleted text as string"
-        except Exception as e:
-            # Delete may fail if position is invalid
-            pytest.skip(f"Delete operation failed: {e}")
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_apply_text_edits_to_file(self, language_server: SolidLanguageServer) -> None:
-        """Test applying multiple text edits to a file."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Prepare edits using correct LSP structure for textDocument/didChange
-        # TextDocumentContentChangeEvent uses 'text', not 'newText'
-        edits = [
-            {
-                "range": {
-                    "start": {"line": 0, "character": 0},
-                    "end": {"line": 0, "character": 0},
-                },
-                "newText": "// Added by test\n",
-            }
-        ]
-
-        # Apply edits
-        try:
-            result = language_server.apply_text_edits_to_file(file_path, edits)
-            # Should return success or raise exception
-            assert result is None or isinstance(result, bool) or result == {}
-        except Exception as e:
-            pytest.skip(f"Apply text edits failed: {e}")
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_insert_text_at_position(self, language_server: SolidLanguageServer) -> None:
         """Test inserting text at a specific position."""
         file_path = "ExpertAdvisor.mq4"
@@ -597,53 +542,6 @@ class TestMql4LanguageServerSymbolHierarchy:
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_request_containing_symbol(self, language_server: SolidLanguageServer) -> None:
         """Test request_containing_symbol for finding the symbol that contains a position."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Get a position within OnTick function
-        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
-        ontick_symbol = next((s for s in symbols[0] if s.get("name") == "OnTick"), None)
-
-        if not ontick_symbol or "range" not in ontick_symbol:
-            pytest.skip("OnTick symbol not found")
-
-        # Get position inside OnTick body
-        range_info = ontick_symbol["range"]
-        test_line = range_info["start"]["line"] + 2  # A few lines into the function
-
-        # Request containing symbol
-        containing = language_server.request_containing_symbol(file_path, test_line, 5)
-
-        # Should return OnTick or a nested symbol
-        if containing is not None:
-            assert "name" in containing, "Containing symbol should have name"
-            assert "kind" in containing, "Containing symbol should have kind"
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_request_defining_symbol(self, language_server: SolidLanguageServer) -> None:
-        """Test request_defining_symbol for finding the symbol that defines a reference."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Find a function call (e.g., NormalizeDouble inside a function)
-        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
-        ontick_symbol = next((s for s in symbols[0] if s.get("name") == "OnTick"), None)
-
-        if not ontick_symbol or "range" not in ontick_symbol:
-            pytest.skip("OnTick symbol not found")
-
-        # Get position in OnTick body where there's likely a function call
-        range_info = ontick_symbol["range"]
-        test_line = range_info["start"]["line"] + 3
-
-        # Get defining symbol
-        defining = language_server.request_defining_symbol(file_path, test_line, 10)
-
-        # Should return the symbol definition
-        if defining is not None:
-            assert "name" in defining, "Defining symbol should have name"
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_request_containing_symbol(self, language_server: SolidLanguageServer) -> None:
-        """Test request_containing_symbol for finding the symbol that contains a position."""
         import signal
 
         file_path = "ExpertAdvisor.mq4"
@@ -803,29 +701,6 @@ class TestMql4LanguageServerFileContent:
         assert isinstance(content, str), "Should return file content as string"
         assert len(content) > 0, "File should have content"
 
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_open_file(self, language_server: SolidLanguageServer) -> None:
-        """Test opening a file for LSP operations."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Opening a file should not raise
-        with language_server.open_file(file_path):
-            # Within context, file should be available for LSP operations
-            symbols = language_server.request_document_symbols(file_path)
-            assert symbols is not None
-    """Test file content retrieval methods."""
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_retrieve_full_file_content(self, language_server: SolidLanguageServer) -> None:
-        """Test retrieving full content of a file."""
-        file_path = "ExpertAdvisor.mq4"
-
-        content = language_server.retrieve_full_file_content(file_path)
-
-        # Should return string content
-        assert isinstance(content, str), "Should return file content as string"
-        assert len(content) > 0, "File should have content"
 
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_open_file(self, language_server: SolidLanguageServer) -> None:
@@ -888,55 +763,6 @@ class TestMql4LanguageServerCompletions:
         except Exception as e:
             # May fail if completion not supported
             pytest.skip(f"Completions request failed: {e}")
-    """Test textDocument/completion LSP method."""
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_request_completions_at_function(self, language_server: SolidLanguageServer) -> None:
-        """Test requesting completions within a function."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Get position within OnInit function
-        symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
-        oninit_symbol = next((s for s in symbols[0] if s.get("name") == "OnInit"), None)
-
-        if not oninit_symbol or "range" not in oninit_symbol:
-            pytest.skip("OnInit symbol not found")
-
-        # Get position inside function body
-        range_info = oninit_symbol["range"]
-        test_line = range_info["start"]["line"] + 2
-
-        try:
-            completions = language_server.request_completions(file_path, test_line, 5)
-
-            # LSP spec allows two formats:
-            # 1. CompletionList: { items: [...], isIncomplete: boolean }
-            # 2. CompletionItem[]: [ {...}, {...} ]
-            if completions is not None:
-                assert isinstance(completions, (dict, list)), "Completions should be dict or list"
-                if isinstance(completions, dict):
-                    assert "items" in completions, "CompletionList should have 'items'"
-                    completions = completions["items"]
-                # completions is now a list of CompletionItem dicts
-        except NotImplementedError:
-            pytest.skip("request_completions not implemented in SolidLanguageServer")
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_request_completions_empty_line(self, language_server: SolidLanguageServer) -> None:
-        """Test requesting completions at an empty line."""
-        file_path = "ExpertAdvisor.mq4"
-
-        # Try at end of file or empty line
-        try:
-            completions = language_server.request_completions(file_path, 0, 0)
-
-            # LSP spec allows two formats: CompletionList dict or CompletionItem[] list
-            if completions is not None:
-                assert isinstance(completions, (dict, list)), "Completions should be dict or list"
-                if isinstance(completions, dict):
-                    assert "items" in completions, "CompletionList should have 'items'"
-        except NotImplementedError:
-            pytest.skip("request_completions not implemented in SolidLanguageServer")
 
 
 @pytest.mark.mql4

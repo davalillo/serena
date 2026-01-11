@@ -9,8 +9,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-SOURCE_DIR="/home/guillermo/source/mql4-language-server/home/guillermo/source/mql4-language-server"
-SOURCE_FILE="$SOURCE_DIR/mql4-lsp-server"
+SOURCE_DIR="/home/guillermo/source/mql4-language-server/main/src/bin/Release/net10.0/publish/linux-x64"
+SOURCE_FILE="$SOURCE_DIR/mql4-lsp-server-linux-x64"
 DEST_DIR="$HOME/.serena/language_servers/static/Mql4LanguageServer/mql4-lsp"
 DEST_FILE="$DEST_DIR/mql4-lsp-server"
 
