@@ -346,7 +346,6 @@ class TestMql4LanguageServerTextOperations:
     """Test textDocument/didChange LSP methods for file modifications."""
 
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_insert_text_at_position(self, language_server: SolidLanguageServer) -> None:
         """Test inserting text at a specific position."""
         file_path = "ExpertAdvisor.mq4"
@@ -379,6 +378,7 @@ class TestMql4LanguageServerTextOperations:
                 assert "character" in new_position, "Position should have character"
         except Exception as e:
             pytest.skip(f"Insert text failed: {e}")
+
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_delete_text_between_positions(self, language_server: SolidLanguageServer) -> None:
         """Test deleting text between two positions."""
