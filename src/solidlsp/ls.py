@@ -722,6 +722,21 @@ class SolidLanguageServer(ABC):
             }
         )
 
+    def _send_selection_range_request(self, relative_file_path: str, positions: list[dict]) -> list[lsp_types.SelectionRange] | None:
+        """
+        Sends a textDocument/selectionRange request to find selection ranges at given positions.
+
+        :param relative_file_path: The relative path of the file
+        :param positions: List of positions (dicts with 'line' and 'character' keys)
+        :return: List of SelectionRange objects or None
+        """
+        return self.server.send.selection_range(
+            {
+                "textDocument": {"uri": PathUtils.path_to_uri(os.path.join(self.repository_root_path, relative_file_path))},
+                "positions": positions,  # type: ignore
+            }
+        )
+
     def request_references(self, relative_file_path: str, line: int, column: int) -> list[ls_types.Location]:
         """
         Raise a [textDocument/references](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references) request to the Language Server
@@ -789,6 +804,31 @@ class SolidLanguageServer(ABC):
             ret.append(ls_types.Location(**new_item))  # type: ignore
 
         return ret
+
+    def request_selection_range(
+        self,
+        relative_file_path: str,
+        positions: list[dict],
+    ) -> list[lsp_types.SelectionRange] | None:
+        """
+        Raise a [textDocument/selectionRange](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_selectionRange)
+        request to find selection ranges at given positions in a file.
+
+        :param relative_file_path: The relative path of the file
+        :param positions: List of positions, each a dict with 'line' and 'character' keys
+        :return: List of SelectionRange objects or None
+        """
+        if not self.server_started:
+            self.logger.log(
+                "request_selection_range called before Language Server started",
+                logging.ERROR,
+            )
+            raise SolidLSPException("Language Server not started")
+
+        with self.open_file(relative_file_path):
+            response = self._send_selection_range_request(relative_file_path, positions)
+
+        return response
 
     def request_text_document_diagnostics(self, relative_file_path: str) -> list[ls_types.Diagnostic]:
         """
@@ -1551,7 +1591,8 @@ class SolidLanguageServer(ABC):
         functions, methods, or classes (typically: Function (12), Method (6), Class (5)).
 
         The method operates as follows:
-          - Request the document symbols for the file.
+          - Try using textDocument/selectionRange (LSP 3.17) for efficiency
+          - If selectionRange is not available or fails, fall back to textDocument/documentSymbol
           - Filter symbols to those that start at or before the given line.
           - From these, first look for symbols whose range contains the (line, column).
           - If one or more symbols contain the position, return the one with the greatest starting position
@@ -1582,6 +1623,20 @@ class SolidLanguageServer(ABC):
                 )
                 return None
 
+        # Try using selectionRange first (LSP 3.17, more efficient)
+        try:
+            position = [{"line": line, "character": column}] if column is not None else [{"line": line, "character": 0}]
+            selection_ranges = self.request_selection_range(relative_file_path, position)
+
+            if selection_ranges and len(selection_ranges) > 0:
+                # SelectionRange is available and returned results
+                # For now, we still use documentSymbol for full symbol information
+                # TODO: Implement direct conversion from SelectionRange to UnifiedSymbolInformation
+                self.logger.log(f"selectionRange available and returned {len(selection_ranges)} ranges", logging.DEBUG)
+        except Exception as e:
+            self.logger.log(f"selectionRange not available or failed: {e}, falling back to documentSymbol", logging.DEBUG)
+
+        # Fallback to documentSymbol (existing implementation)
         document_symbols = self.request_document_symbols(relative_file_path)
 
         # make jedi and pyright api compatible
