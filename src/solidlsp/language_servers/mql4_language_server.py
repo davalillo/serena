@@ -303,20 +303,37 @@ class Mql4LanguageServer(SolidLanguageServer):
     def _get_initialize_params(repository_absolute_path: str) -> dict[str, Any]:
         """
         Returns the initialize params for the MQL4 Language Server.
+
+        Note: The MQL4 LSP server is sensitive to client capabilities structure.
+        Using dynamicRegistration can cause the server to not expose certain providers.
+        We use minimal safe capabilities to ensure all features work correctly.
         """
         root_uri = pathlib.Path(repository_absolute_path).as_uri()
         initialize_params: dict[str, Any] = {
             "locale": "en",
             "capabilities": {
                 "textDocument": {
-                    "synchronization": {"didSave": True, "dynamicRegistration": True},
-                    "completion": {"dynamicRegistration": True, "completionItem": {"snippetSupport": True}},
-                    "definition": {"dynamicRegistration": True},
-                    "references": {"dynamicRegistration": True},
-                    "hover": {"dynamicRegistration": True},
-                    "documentSymbol": {"dynamicRegistration": True},
+                    "synchronization": {
+                        "didSave": True,
+                    },
+                    "completion": {
+                        "completionItem": {
+                            "snippetSupport": True
+                        }
+                    },
+                    "hover": {
+                        "contentFormat": ["markdown", "plaintext"]
+                    },
+                    "definition": True,
+                    "references": True,
+                    "documentSymbol": True,
+                    "codeAction": {
+                        "codeActionKinds": ["quickfix"]
+                    }
                 },
-                "workspace": {"workspaceFolders": True, "didChangeConfiguration": {"dynamicRegistration": True}},
+                "workspace": {
+                    "workspaceFolders": True,
+                }
             },
             "processId": os.getpid(),
             "rootPath": repository_absolute_path,
@@ -393,20 +410,14 @@ class Mql4LanguageServer(SolidLanguageServer):
         )
         init_response = self.server.send.initialize(cast(InitializeParams, initialize_params))
 
-        # Verify basic capabilities
+        # Store server capabilities for later use
         assert "capabilities" in init_response
-        capabilities: dict[str, Any] = cast(dict[str, Any], init_response["capabilities"])
+        server_capabilities: dict[str, Any] = cast(dict[str, Any], init_response["capabilities"])
+        self.logger.log(f"MQL4 LSP Server capabilities: {server_capabilities}", logging.INFO)
 
-        # Check for textDocumentSync (can be in capabilities or capabilities.textDocument)
-        has_sync = "textDocumentSync" in capabilities
-        if not has_sync and "textDocument" in capabilities:
-            has_sync = "synchronization" in capabilities["textDocument"]
-
-        # Check for completion capability
-        has_completion = "completionProvider" in capabilities or "completion" in capabilities.get("textDocument", {})
-
-        self.logger.log(f"MQL4 LSP capabilities verified - Sync: {has_sync}, Completion: {has_completion}", logging.INFO)
-        self.logger.log(f"Server capabilities: {capabilities}", logging.INFO)
+        # Log which methods are supported by the server
+        text_doc_caps = server_capabilities.get("textDocument", {})
+        self.logger.log(f"textDocument capabilities: {text_doc_caps}", logging.DEBUG)
 
         # Mark server as initialized
         self.server.notify.initialized({})
@@ -414,14 +425,7 @@ class Mql4LanguageServer(SolidLanguageServer):
         # Signal that completions are available
         self.completions_available.set()
 
-        # Wait for server to be fully ready (with timeout)
-        import time
-        start_time = time.time()
-        timeout = 60  # 60 seconds timeout
-        while not self.server_ready.is_set() and (time.time() - start_time) < timeout:
-            time.sleep(0.1)
-
-        if self.server_ready.is_set():
-            self.logger.log("MQL4 LSP server is ready", logging.INFO)
-        else:
-            self.logger.log("MQL4 LSP server initialization timeout, proceeding anyway", logging.WARNING)
+        # MQL4 LSP server doesn't send experimental/serverStatus notification
+        # Set server_ready immediately after successful initialization
+        self.server_ready.set()
+        self.logger.log("MQL4 LSP server is ready", logging.INFO)

@@ -115,6 +115,8 @@ included_optional_tools:
 - get_current_config
 - initial_instructions
 
+- activate_project
+
 - replace_symbol_body
 - insert_at_line
 - insert_after_symbol

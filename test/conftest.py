@@ -121,11 +121,11 @@ def language_server(request: LanguageParamRequest):
     if language == Language.MQL4:
         try:
             # Get MQL4 LSP executable path (same logic as in Mql4LanguageServer)
-            from solidlsp.ls_config import SERENA_MANAGED_DIR_IN_HOME, SERENA_MANAGED_DIR_NAME
             from solidlsp.settings import SolidLSPSettings
 
             mql4_ls_dir = os.path.join(
-                SolidLSPSettings(solidlsp_dir=SERENA_MANAGED_DIR_IN_HOME, project_data_relative_path=SERENA_MANAGED_DIR_NAME).get_solidlsp_dir(),
+                SolidLSPSettings(solidlsp_dir=SERENA_MANAGED_DIR_IN_HOME, project_data_relative_path=SERENA_MANAGED_DIR_NAME).ls_resources_dir,
+                "Mql4LanguageServer",
                 "mql4-lsp"
             )
             mql4_ls_executable_path = os.path.join(mql4_ls_dir, "mql4-lsp-server")

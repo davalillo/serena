@@ -182,7 +182,6 @@ class TestMql4LanguageServerBasics:
         # Should find multiple references (used in open position and has open position functions)
         assert len(references) > 0, "Should find references for MagicNumber parameter"
 
-    @pytest.mark.skip(reason="request_completion method not implemented in SolidLanguageServer")
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_request_completion_on_init_function(self, language_server: SolidLanguageServer) -> None:
         """Test request_completion within OnInit function in ExpertAdvisor.mq4."""
@@ -195,7 +194,6 @@ class TestMql4LanguageServerBasics:
         # Should get completions
         assert completions is not None, "Should get completions"
 
-    @pytest.mark.skip(reason="request_completion method not implemented in SolidLanguageServer")
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_request_completion_on_tick_function(self, language_server: SolidLanguageServer) -> None:
         """Test request_completion within OnTick function in ExpertAdvisor.mq4."""
@@ -227,10 +225,6 @@ class TestMql4LanguageServerBasics:
         expected_ea_symbols = ["OnInit", "OnTick", "MagicNumber", "LotSize"]
         for sym in expected_ea_symbols:
             assert sym in symbol_names, f"Expected symbol {sym} not found in EA"
-
-    @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
-    def test_struct_symbols_in_indicator(self, language_server: SolidLanguageServer) -> None:
-        """Test that struct symbols are properly extracted in indicator file."""
         indicator_file = "Indicators/MyIndicator.mq4"
 
         # Get symbols from the indicator
