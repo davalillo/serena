@@ -333,7 +333,10 @@ class Mql4LanguageServer(SolidLanguageServer):
                 },
                 "workspace": {
                     "workspaceFolders": True,
-                }
+                    "symbol": {
+                        "dynamicRegistration": False,
+                    }
+                },
             },
             "processId": os.getpid(),
             "rootPath": repository_absolute_path,

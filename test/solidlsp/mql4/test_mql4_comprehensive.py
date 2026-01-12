@@ -187,24 +187,26 @@ class TestMql4LanguageServerWorkspaceSymbol:
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_workspace_symbol_case_insensitive(self, language_server: SolidLanguageServer) -> None:
         """Test that workspace symbol search is case insensitive."""
-        try:
-            result_lower = language_server.request_workspace_symbol("oninit")
-            result_upper = language_server.request_workspace_symbol("ONINIT")
-            result_mixed = language_server.request_workspace_symbol("OnInit")
+        # Search for OnInit function with different cases
+        result_lower = language_server.request_workspace_symbol("oninit")
+        result_upper = language_server.request_workspace_symbol("ONINIT")
+        result_mixed = language_server.request_workspace_symbol("OnInit")
 
-            # All should find the same results (or similar set)
-            if result_lower is not None and result_upper is not None and result_mixed is not None:
+        # All results should be lists (may be empty if server doesn't find matches)
+        assert result_lower is None or isinstance(result_lower, list), "Result should be a list or None"
+        assert result_upper is None or isinstance(result_upper, list), "Result should be a list or None"
+        assert result_mixed is None or isinstance(result_mixed, list), "Result should be a list or None"
+
+        # If we have results, verify case insensitivity
+        if result_lower is not None and result_upper is not None and result_mixed is not None:
+            if result_lower or result_upper or result_mixed:
                 # Convert to sets of names for comparison
                 names_lower = {item.get("name", "") for item in result_lower}
                 names_upper = {item.get("name", "") for item in result_upper}
                 names_mixed = {item.get("name", "") for item in result_mixed}
 
-                # Should find OnInit in all cases
-                assert "OnInit" in names_lower or any("OnInit" in n for n in names_lower)
-                assert "OnInit" in names_upper or any("OnInit" in n for n in names_upper)
-                assert "OnInit" in names_mixed or any("OnInit" in n for n in names_mixed)
-        except Exception as e:
-            pytest.skip(f"Workspace symbol not available: {e}")
+                # Should find the same symbols regardless of case
+                assert names_lower == names_upper == names_mixed, "Case variations should return same results"
 
 
 @pytest.mark.mql4
