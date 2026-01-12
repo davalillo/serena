@@ -329,6 +329,9 @@ class Mql4LanguageServer(SolidLanguageServer):
                     "documentSymbol": True,
                     "codeAction": {
                         "codeActionKinds": ["quickfix"]
+                    },
+                    "diagnostic": {
+                        "dynamicRegistration": False,
                     }
                 },
                 "workspace": {

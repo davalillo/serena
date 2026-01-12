@@ -114,9 +114,6 @@ included_optional_tools:
 - think_about_task_adherence  # Fuerza chequeos como "¿Estoy usando Serena?"
 - get_current_config
 - initial_instructions
-
-- activate_project
-
 - replace_symbol_body
 - insert_at_line
 - insert_after_symbol
