@@ -108,47 +108,44 @@ class Mql4LanguageServer(SolidLanguageServer):
         """
         import hashlib
         import shutil
-        import urllib.error
-        import urllib.request
 
-        # Version and base URL configuration
-        LSP_VERSION = "v1.7.0"
-        BASE_URL = f"https://github.com/davalillo/mql4-language-server-releases/releases/download/{LSP_VERSION}"
-        CHECKSUMS_URL = f"{BASE_URL}/CHECKSUMS.txt"
+        # Dynamic version from latest GitHub release
+        LATEST_RELEASE_BASE = "https://github.com/davalillo/mql4-language-server-releases/releases/latest/download"
+        CHECKSUMS_URL = f"{LATEST_RELEASE_BASE}/CHECKSUMS.txt"
 
-        logger.log(f"[MQL4 LSP] Starting setup for version {LSP_VERSION}", logging.INFO)
+        logger.log("[MQL4 LSP] Starting setup for latest version from GitHub releases", logging.INFO)
 
         # Platform-specific configuration
         deps = RuntimeDependencyCollection(
             [
                 RuntimeDependency(
                     id="Mql4LanguageServer",
-                    description=f"MQL4 Language Server {LSP_VERSION} for Linux (x64)",
-                    url=f"{BASE_URL}/mql4-lsp-server-linux-x64",
+                    description="MQL4 Language Server (latest) for Linux (x64)",
+                    url=f"{LATEST_RELEASE_BASE}/mql4-lsp-server-linux-x64",
                     platform_id="linux-x64",
                     archive_type="binary",
                     binary_name="mql4-lsp-server",
                 ),
                 RuntimeDependency(
                     id="Mql4LanguageServer",
-                    description=f"MQL4 Language Server {LSP_VERSION} for macOS (x64)",
-                    url=f"{BASE_URL}/mql4-lsp-server-osx-x64",
+                    description="MQL4 Language Server (latest) for macOS (x64)",
+                    url=f"{LATEST_RELEASE_BASE}/mql4-lsp-server-osx-x64",
                     platform_id="osx-x64",
                     archive_type="binary",
                     binary_name="mql4-lsp-server",
                 ),
                 RuntimeDependency(
                     id="Mql4LanguageServer",
-                    description=f"MQL4 Language Server {LSP_VERSION} for macOS (Arm64)",
-                    url=f"{BASE_URL}/mql4-lsp-server-osx-arm64",
+                    description="MQL4 Language Server (latest) for macOS (Arm64)",
+                    url=f"{LATEST_RELEASE_BASE}/mql4-lsp-server-osx-arm64",
                     platform_id="osx-arm64",
                     archive_type="binary",
                     binary_name="mql4-lsp-server",
                 ),
                 RuntimeDependency(
                     id="Mql4LanguageServer",
-                    description=f"MQL4 Language Server {LSP_VERSION} for Windows (x64)",
-                    url=f"{BASE_URL}/mql4-lsp-server-win-x64.exe",
+                    description="MQL4 Language Server (latest) for Windows (x64)",
+                    url=f"{LATEST_RELEASE_BASE}/mql4-lsp-server-win-x64.exe",
                     platform_id="win-x64",
                     archive_type="binary",
                     binary_name="mql4-lsp-server.exe",
@@ -184,46 +181,53 @@ class Mql4LanguageServer(SolidLanguageServer):
         mql4_ls_executable_path = deps.binary_path(mql4_ls_dir)
         logger.log(f"[MQL4 LSP] Expected executable path: {mql4_ls_executable_path}", logging.DEBUG)
 
-        # Step 1: Check if binary already exists locally
+        # Pre-download checksums from latest release for verification
+        logger.log("[MQL4 LSP] Fetching checksums from latest GitHub release...", logging.INFO)
+        checksums = cls._download_and_parse_checksums(CHECKSUMS_URL, logger)
+
+        # Step 1: Check if binary already exists locally and verify against latest release
         if os.path.exists(mql4_ls_executable_path):
             logger.log(f"[MQL4 LSP] Binary found in cache: {mql4_ls_executable_path}", logging.INFO)
-            cls._verify_and_set_executable(mql4_ls_executable_path, logger)
-            return mql4_ls_executable_path
 
-        logger.log("[MQL4 LSP] Binary not in cache, attempting download...", logging.INFO)
+            if checksums and dep.binary_name in checksums:
+                # Compare local checksum with latest release checksum
+                local_checksum = cls._calculate_local_checksum(mql4_ls_executable_path, logger)
+                expected_checksum = checksums[dep.binary_name]
 
-        # Step 2: Try to download checksums file first
-        checksums: dict[str, str] = {}
-        try:
-            logger.log(f"[MQL4 LSP] Fetching checksums from: {CHECKSUMS_URL}", logging.INFO)
-            with urllib.request.urlopen(CHECKSUMS_URL, timeout=10) as response:
-                checksums_content = response.read().decode("utf-8")
-                logger.log("[MQL4 LSP] Checksums file downloaded successfully", logging.DEBUG)
-
-            # Parse checksums (format: "sha256hash  filename")
-            for line in checksums_content.splitlines():
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                parts = line.split(None, 1)
-                if len(parts) == 2:
-                    file_hash, file_name = parts
-                    checksums[file_name] = file_hash
-
-            if dep.binary_name:
-                expected_hash = checksums.get(dep.binary_name)
+                if local_checksum == expected_checksum:
+                    logger.log(
+                        "[MQL4 LSP] Local binary matches latest release, using cached version",
+                        logging.INFO,
+                    )
+                    return cls._verify_and_set_executable(mql4_ls_executable_path, logger)
+                else:
+                    logger.log(
+                        "[MQL4 LSP] Local binary outdated (checksum mismatch), downloading latest version...",
+                        logging.INFO,
+                    )
+                    logger.log(
+                        f"[MQL4 LSP] Local: {local_checksum[:16] if local_checksum else 'N/A'}... vs "
+                        f"Latest: {expected_checksum[:16]}...",
+                        logging.DEBUG,
+                    )
             else:
-                expected_hash = None
-            if expected_hash:
-                logger.log(f"[MQL4 LSP] Expected SHA256 for {dep.binary_name}: {expected_hash[:16]}...", logging.INFO)
-            else:
-                logger.log(f"[MQL4 LSP] WARNING: No checksum found for {dep.binary_name}", logging.WARNING)
-        except urllib.error.URLError as e:
-            logger.log(f"[MQL4 LSP] Failed to fetch checksums: {e}. Continuing without verification...", logging.WARNING)
-        except Exception as e:
-            logger.log(f"[MQL4 LSP] Error parsing checksums file: {e}. Continuing without verification...", logging.WARNING)
+                logger.log(
+                    "[MQL4 LSP] Could not verify against latest release checksums, "
+                    "using cached version",
+                    logging.WARNING,
+                )
+                return cls._verify_and_set_executable(mql4_ls_executable_path, logger)
 
-        # Step 3: Download the binary
+        logger.log("[MQL4 LSP] Binary not in cache or outdated, attempting download...", logging.INFO)
+
+        # Log expected checksum if available
+        if checksums and dep.binary_name in checksums:
+            expected_hash = checksums[dep.binary_name]
+            logger.log(f"[MQL4 LSP] Expected SHA256 for {dep.binary_name}: {expected_hash[:16]}...", logging.INFO)
+        else:
+            logger.log(f"[MQL4 LSP] WARNING: No checksum found for {dep.binary_name}", logging.WARNING)
+
+        # Step 2: Download the binary
         os.makedirs(mql4_ls_dir, exist_ok=True)
         try:
             logger.log(f"[MQL4 LSP] Downloading from: {dep.url}", logging.INFO)
@@ -258,7 +262,7 @@ class Mql4LanguageServer(SolidLanguageServer):
             )
 
         # Step 5: Verify SHA256 checksum if available
-        if dep.binary_name in checksums:
+        if checksums and dep.binary_name and dep.binary_name in checksums:
             expected_hash = checksums[dep.binary_name]
             logger.log("[MQL4 LSP] Verifying SHA256 checksum...", logging.INFO)
             try:
@@ -298,6 +302,59 @@ class Mql4LanguageServer(SolidLanguageServer):
 
         logger.log(f"[MQL4 LSP] Language Server ready at {executable_path}", logging.INFO)
         return executable_path
+
+    @staticmethod
+    def _download_and_parse_checksums(checksums_url: str, logger: LanguageServerLogger) -> dict[str, str] | None:
+        """
+        Downloads and parses the checksums file from the latest GitHub release.
+        Returns a dictionary mapping filenames to SHA256 hashes, or None if parsing fails.
+        """
+        import urllib.error
+        import urllib.request
+
+        checksums: dict[str, str] = {}
+        try:
+            logger.log(f"[MQL4 LSP] Fetching checksums from latest release: {checksums_url}", logging.INFO)
+            with urllib.request.urlopen(checksums_url, timeout=10) as response:
+                checksums_content = response.read().decode("utf-8")
+                logger.log("[MQL4 LSP] Checksums file downloaded successfully", logging.DEBUG)
+
+            # Parse checksums (format: "sha256hash  filename")
+            for line in checksums_content.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    file_hash, file_name = parts
+                    checksums[file_name] = file_hash
+
+            logger.log(f"[MQL4 LSP] Parsed {len(checksums)} checksums from latest release", logging.DEBUG)
+            return checksums if checksums else None
+        except urllib.error.URLError as e:
+            logger.log(f"[MQL4 LSP] Failed to fetch checksums from latest release: {e}", logging.WARNING)
+            return None
+        except Exception as e:
+            logger.log(f"[MQL4 LSP] Error parsing checksums file: {e}", logging.WARNING)
+            return None
+
+    @staticmethod
+    def _calculate_local_checksum(executable_path: str, logger: LanguageServerLogger) -> str | None:
+        """
+        Calculates the SHA256 checksum of a local executable.
+        Returns the hexadecimal hash string, or None if calculation fails.
+        """
+        import hashlib
+
+        try:
+            logger.log(f"[MQL4 LSP] Calculating checksum for local binary: {executable_path}", logging.DEBUG)
+            with open(executable_path, "rb") as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+            logger.log(f"[MQL4 LSP] Local checksum: {file_hash[:16]}...", logging.DEBUG)
+            return file_hash
+        except Exception as e:
+            logger.log(f"[MQL4 LSP] Error calculating local checksum: {e}", logging.WARNING)
+            return None
 
     @staticmethod
     def _get_initialize_params(repository_absolute_path: str) -> dict[str, Any]:
