@@ -190,7 +190,7 @@ class TestMql4LanguageServerBasics:
 
         # Test completion at line where OnInit function is defined
         # Line 21 contains the OnInit function definition
-        completions = language_server.request_completion(file_path, 21, 5)
+        completions = language_server.request_completions(file_path, 21, 5)
 
         # Should get completions
         assert completions is not None, "Should get completions"
@@ -203,7 +203,7 @@ class TestMql4LanguageServerBasics:
 
         # Test completion at a line within OnTick function
         # Line 45 has code that calls CheckForTradeSignals
-        completions = language_server.request_completion(file_path, 45, 10)
+        completions = language_server.request_completions(file_path, 45, 10)
 
         # Should get completions
         assert completions is not None, "Should get completions"
