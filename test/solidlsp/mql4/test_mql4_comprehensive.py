@@ -366,13 +366,14 @@ class TestMql4LanguageServerTextOperations:
         # Just verify the method exists and can be called
         # (Actual modification tests would need cleanup)
         try:
-            result = language_server.delete_text_between_positions(
-                file_path,
-                {"line": delete_start_line, "character": delete_start_col},
-                {"line": delete_end_line, "character": delete_end_col}
-            )
-            # Should return the new position after deletion
-            assert result is None or isinstance(result, dict)
+            with language_server.open_file(file_path):
+                result = language_server.delete_text_between_positions(
+                    file_path,
+                    {"line": delete_start_line, "character": delete_start_col},
+                    {"line": delete_end_line, "character": delete_end_col}
+                )
+                # Should return a valid result (string with new content, dict position, or None)
+                assert result is None or isinstance(result, (dict, str)), f"Expected None, dict, or str, got {type(result)}"
         except Exception as e:
             # Delete may fail if position is invalid
             pytest.skip(f"Delete operation failed: {e}")
