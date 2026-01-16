@@ -21,11 +21,11 @@
     <div class="header-left">
 
         <div class="logo-container">
-            <img id="serena-logo" src="serena-logs.png" alt="Serena">
+            <img id="serena-logo" class="theme-aware-img" src="serena-logo.svg" data-src-light="serena-logo.svg" data-src-dark="serena-logo-dark-mode.svg" alt="Serena">
         </div>
 
-        <!-- Platinum Sponsors in Header -->
-        <div id="platinum-sponsors" class="header-sponsor">
+        <!-- Platinum Banners in Header -->
+        <div id="platinum-banners" class="header-banner">
         </div>
     </div>
 
@@ -54,6 +54,13 @@
     <div id="page-overview" class="page-view">
         <div class="overview-container">
             <div class="overview-left">
+
+                <section id="news-section" class="news-section" style="display:none">
+                    <h2>What's New</h2>
+                    <div id="news-display">
+                        <div class="loading">Loading news...</div>
+                    </div>
+                </section>
 
                 <section class="config-section">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -134,8 +141,8 @@
                     </div>
                 </section>
 
-                <!-- Gold Sponsors -->
-                <section id="gold-sponsors" class="gold-sponsors-section">
+                <!-- Gold Banners -->
+                <section id="gold-banners" class="gold-banners-section">
                 </section>
             </div>
         </div>

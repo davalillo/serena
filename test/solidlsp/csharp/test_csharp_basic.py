@@ -5,7 +5,9 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from sensai.util import logging
 
+from serena.util.logging import SuspendedLoggersContext
 from solidlsp import SolidLanguageServer
 from solidlsp.language_servers.csharp_language_server import (
     CSharpLanguageServer,
@@ -235,7 +237,7 @@ class TestCSharpSolutionProjectOpening:
             # Should still prefer .sln file even though it's deeper
             assert result == str(solution_file)
 
-    @patch("solidlsp.language_servers.csharp_language_server.CSharpLanguageServer._ensure_server_installed")
+    @patch("solidlsp.language_servers.csharp_language_server.CSharpLanguageServer.DependencyProvider._ensure_server_installed")
     @patch("solidlsp.language_servers.csharp_language_server.CSharpLanguageServer._start_server")
     def test_csharp_language_server_logs_solution_discovery(self, mock_start_server, mock_ensure_server_installed):
         """Test that CSharpLanguageServer logs solution/project discovery during initialization."""
@@ -247,8 +249,6 @@ class TestCSharpSolutionProjectOpening:
             solution_file = temp_path / "TestSolution.sln"
             solution_file.touch()
 
-            # Mock logger to capture log messages
-            mock_logger = Mock()
             mock_config = Mock(spec=LanguageServerConfig)
             mock_config.ignored_paths = []
 
@@ -256,12 +256,17 @@ class TestCSharpSolutionProjectOpening:
             mock_settings = Mock(spec=SolidLSPSettings)
             mock_settings.ls_resources_dir = "/tmp/test_ls_resources"
             mock_settings.project_data_relative_path = "project_data"
-            CSharpLanguageServer(mock_config, mock_logger, str(temp_path), mock_settings)
 
-            # Verify that logger was called with solution file discovery
-            mock_logger.log.assert_any_call(f"Found solution/project file: {solution_file}", 20)  # logging.INFO
+            with SuspendedLoggersContext():
+                logging.getLogger().setLevel(logging.DEBUG)
+                with logging.MemoryLoggerContext() as mem_log:
+                    CSharpLanguageServer(mock_config, str(temp_path), mock_settings)
 
-    @patch("solidlsp.language_servers.csharp_language_server.CSharpLanguageServer._ensure_server_installed")
+                    # Verify that logger was called with solution file discovery
+                    expected_log_msg = f"Found solution/project file: {solution_file}"
+                    assert expected_log_msg in mem_log.get_log()
+
+    @patch("solidlsp.language_servers.csharp_language_server.CSharpLanguageServer.DependencyProvider._ensure_server_installed")
     @patch("solidlsp.language_servers.csharp_language_server.CSharpLanguageServer._start_server")
     def test_csharp_language_server_logs_no_solution_warning(self, mock_start_server, mock_ensure_server_installed):
         """Test that CSharpLanguageServer logs warning when no solution/project files are found."""
@@ -273,20 +278,22 @@ class TestCSharpSolutionProjectOpening:
             temp_path = Path(temp_dir)
 
             # Mock logger to capture log messages
-            mock_logger = Mock()
             mock_config = Mock(spec=LanguageServerConfig)
             mock_config.ignored_paths = []
 
-            # Create CSharpLanguageServer instance
             mock_settings = Mock(spec=SolidLSPSettings)
             mock_settings.ls_resources_dir = "/tmp/test_ls_resources"
             mock_settings.project_data_relative_path = "project_data"
-            CSharpLanguageServer(mock_config, mock_logger, str(temp_path), mock_settings)
 
-            # Verify that logger was called with warning about no solution/project files
-            mock_logger.log.assert_any_call(
-                "No .sln or .csproj file found, language server will attempt auto-discovery", 30  # logging.WARNING
-            )
+            # Create CSharpLanguageServer instance
+            with SuspendedLoggersContext():
+                logging.getLogger().setLevel(logging.DEBUG)
+                with logging.MemoryLoggerContext() as mem_log:
+                    CSharpLanguageServer(mock_config, str(temp_path), mock_settings)
+
+                    # Verify that logger was called with warning about no solution/project files
+                    expected_log_msg = "No .sln or .csproj file found, language server will attempt auto-discovery"
+                    assert expected_log_msg in mem_log.get_log()
 
     def test_solution_and_project_opening_with_real_test_repo(self):
         """Test solution and project opening with the actual C# test repository."""

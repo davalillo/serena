@@ -1,10 +1,9 @@
-import json
 from typing import Literal
 
-from serena.tools import ReplaceContentTool, Tool
+from serena.tools import ReplaceContentTool, Tool, ToolMarkerCanEdit
 
 
-class WriteMemoryTool(Tool):
+class WriteMemoryTool(Tool, ToolMarkerCanEdit):
     """
     Writes a named memory (for future reference) to Serena's project-specific memory store.
     """
@@ -50,10 +49,10 @@ class ListMemoriesTool(Tool):
         """
         List available memories. Any memory can be read using the `read_memory` tool.
         """
-        return json.dumps(self.memories_manager.list_memories())
+        return self._to_json(self.memories_manager.list_memories())
 
 
-class DeleteMemoryTool(Tool):
+class DeleteMemoryTool(Tool, ToolMarkerCanEdit):
     """
     Deletes a memory from Serena's project-specific memory store.
     """
@@ -67,7 +66,7 @@ class DeleteMemoryTool(Tool):
         return self.memories_manager.delete_memory(memory_file_name)
 
 
-class EditMemoryTool(Tool):
+class EditMemoryTool(Tool, ToolMarkerCanEdit):
     def apply(
         self,
         memory_file_name: str,

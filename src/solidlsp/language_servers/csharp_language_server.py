@@ -18,17 +18,17 @@ from typing import Any, cast
 
 from overrides import override
 
-from solidlsp.ls import SolidLanguageServer
+from solidlsp.ls import LanguageServerDependencyProvider, SolidLanguageServer
 from solidlsp.ls_config import LanguageServerConfig
 from solidlsp.ls_exceptions import SolidLSPException
-from solidlsp.ls_logger import LanguageServerLogger
 from solidlsp.ls_utils import PathUtils
 from solidlsp.lsp_protocol_handler.lsp_types import InitializeParams, InitializeResult
-from solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from solidlsp.settings import SolidLSPSettings
 from solidlsp.util.zip import SafeZipExtractor
 
 from .common import RuntimeDependency, RuntimeDependencyCollection
+
+log = logging.getLogger(__name__)
 
 _RUNTIME_DEPENDENCIES = [
     RuntimeDependency(
@@ -131,6 +131,14 @@ _RUNTIME_DEPENDENCIES = [
         archive_type="tar.gz",
         binary_name="dotnet",
     ),
+    RuntimeDependency(
+        id="DotNetRuntime",
+        description=".NET 9 Runtime for Windows (ARM64)",
+        url="https://builds.dotnet.microsoft.com/dotnet/Runtime/9.0.6/dotnet-runtime-9.0.6-win-arm64.zip",
+        platform_id="win-arm64",
+        archive_type="zip",
+        binary_name="dotnet.exe",
+    ),
 ]
 
 
@@ -198,291 +206,281 @@ class CSharpLanguageServer(SolidLanguageServer):
     See the `_RUNTIME_DEPENDENCIES` variable above for the available dependency ids and platform_ids.
     """
 
-    def __init__(
-        self, config: LanguageServerConfig, logger: LanguageServerLogger, repository_root_path: str, solidlsp_settings: SolidLSPSettings
-    ):
+    def __init__(self, config: LanguageServerConfig, repository_root_path: str, solidlsp_settings: SolidLSPSettings):
         """
         Creates a CSharpLanguageServer instance. This class is not meant to be instantiated directly.
         Use LanguageServer.create() instead.
         """
-        dotnet_path, language_server_path = self._ensure_server_installed(logger, config, solidlsp_settings)
-
-        # Find solution or project file
-        solution_or_project = find_solution_or_project_file(repository_root_path)
-
-        # Create log directory
-        log_dir = Path(self.ls_resources_dir(solidlsp_settings)) / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        # Build command using dotnet directly
-        cmd = [dotnet_path, language_server_path, "--logLevel=Information", f"--extensionLogDirectory={log_dir}", "--stdio"]
-
-        # The language server will discover the solution/project from the workspace root
-        if solution_or_project:
-            logger.log(f"Found solution/project file: {solution_or_project}", logging.INFO)
-        else:
-            logger.log("No .sln or .csproj file found, language server will attempt auto-discovery", logging.WARNING)
-
-        logger.log(f"Language server command: {' '.join(cmd)}", logging.DEBUG)
-
-        super().__init__(
-            config,
-            logger,
-            repository_root_path,
-            ProcessLaunchInfo(cmd=cmd, cwd=repository_root_path),
-            "csharp",
-            solidlsp_settings,
-        )
+        super().__init__(config, repository_root_path, None, "csharp", solidlsp_settings)
 
         self.initialization_complete = threading.Event()
+
+    def _create_dependency_provider(self) -> LanguageServerDependencyProvider:
+        return self.DependencyProvider(self._custom_settings, self._ls_resources_dir, self._solidlsp_settings, self.repository_root_path)
 
     @override
     def is_ignored_dirname(self, dirname: str) -> bool:
         return super().is_ignored_dirname(dirname) or dirname in ["bin", "obj", "packages", ".vs"]
 
-    @classmethod
-    def _ensure_server_installed(
-        cls, logger: LanguageServerLogger, config: LanguageServerConfig, solidlsp_settings: SolidLSPSettings
-    ) -> tuple[str, str]:
-        """
-        Ensure .NET runtime and Microsoft.CodeAnalysis.LanguageServer are available.
-        Returns a tuple of (dotnet_path, language_server_dll_path).
-        """
-        language_specific_config = solidlsp_settings.get_ls_specific_settings(cls.get_language_enum_instance())
-        runtime_dependency_overrides = cast(list[dict[str, Any]], language_specific_config.get("runtime_dependencies", []))
+    class DependencyProvider(LanguageServerDependencyProvider):
+        def __init__(
+            self,
+            custom_settings: SolidLSPSettings.CustomLSSettings,
+            ls_resources_dir: str,
+            solidlsp_settings: SolidLSPSettings,
+            repository_root_path: str,
+        ):
+            super().__init__(custom_settings, ls_resources_dir)
+            self._solidlsp_settings = solidlsp_settings
+            self._repository_root_path = repository_root_path
+            self._dotnet_path, self._language_server_path = self._ensure_server_installed()
 
-        logger.log("Resolving runtime dependencies", logging.DEBUG)
+        def create_launch_command(self) -> list[str] | str:
+            # Find solution or project file
+            solution_or_project = find_solution_or_project_file(self._repository_root_path)
 
-        runtime_dependencies = RuntimeDependencyCollection(
-            _RUNTIME_DEPENDENCIES,
-            overrides=runtime_dependency_overrides,
-        )
+            # Create log directory
+            log_dir = Path(self._ls_resources_dir) / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.log(
-            f"Available runtime dependencies: {runtime_dependencies.get_dependencies_for_current_platform}",
-            logging.DEBUG,
-        )
+            # Build command using dotnet directly
+            cmd = [self._dotnet_path, self._language_server_path, "--logLevel=Information", f"--extensionLogDirectory={log_dir}", "--stdio"]
 
-        # Find the dependencies for our platform
-        lang_server_dep = runtime_dependencies.get_single_dep_for_current_platform("CSharpLanguageServer")
-        dotnet_runtime_dep = runtime_dependencies.get_single_dep_for_current_platform("DotNetRuntime")
-        dotnet_path = CSharpLanguageServer._ensure_dotnet_runtime(logger, dotnet_runtime_dep, solidlsp_settings)
-        server_dll_path = CSharpLanguageServer._ensure_language_server(logger, lang_server_dep, solidlsp_settings)
+            # The language server will discover the solution/project from the workspace root
+            if solution_or_project:
+                log.info(f"Found solution/project file: {solution_or_project}")
+            else:
+                log.warning("No .sln or .csproj file found, language server will attempt auto-discovery")
 
-        return dotnet_path, server_dll_path
+            log.debug(f"Language server command: {' '.join(cmd)}")
 
-    @classmethod
-    def _ensure_dotnet_runtime(
-        cls, logger: LanguageServerLogger, dotnet_runtime_dep: RuntimeDependency, solidlsp_settings: SolidLSPSettings
-    ) -> str:
-        """Ensure .NET runtime is available and return the dotnet executable path."""
-        # TODO: use RuntimeDependency util methods instead of custom validation/download logic
+            return cmd
 
-        # Check if dotnet is already available on the system
-        system_dotnet = shutil.which("dotnet")
-        if system_dotnet:
-            # Check if it's .NET 9
-            try:
-                result = subprocess.run([system_dotnet, "--list-runtimes"], capture_output=True, text=True, check=True)
-                if "Microsoft.NETCore.App 9." in result.stdout:
-                    logger.log("Found system .NET 9 runtime", logging.INFO)
-                    return system_dotnet
-            except subprocess.CalledProcessError:
-                pass
+        def _ensure_server_installed(self) -> tuple[str, str]:
+            """
+            Ensure .NET runtime and Microsoft.CodeAnalysis.LanguageServer are available.
+            Returns a tuple of (dotnet_path, language_server_dll_path).
+            """
+            runtime_dependency_overrides = cast(list[dict[str, Any]], self._custom_settings.get("runtime_dependencies", []))
 
-        # Download .NET 9 runtime using config
-        return cls._ensure_dotnet_runtime_from_config(logger, dotnet_runtime_dep, solidlsp_settings)
+            log.debug("Resolving runtime dependencies")
 
-    @classmethod
-    def _ensure_language_server(
-        cls, logger: LanguageServerLogger, lang_server_dep: RuntimeDependency, solidlsp_settings: SolidLSPSettings
-    ) -> str:
-        """Ensure language server is available and return the DLL path."""
-        package_name = lang_server_dep.package_name
-        package_version = lang_server_dep.package_version
+            runtime_dependencies = RuntimeDependencyCollection(
+                _RUNTIME_DEPENDENCIES,
+                overrides=runtime_dependency_overrides,
+            )
 
-        server_dir = Path(cls.ls_resources_dir(solidlsp_settings)) / f"{package_name}.{package_version}"
-        assert lang_server_dep.binary_name is not None
-        server_dll = server_dir / lang_server_dep.binary_name
+            log.debug(
+                f"Available runtime dependencies: {runtime_dependencies.get_dependencies_for_current_platform}",
+            )
 
-        if server_dll.exists():
-            logger.log(f"Using cached Microsoft.CodeAnalysis.LanguageServer from {server_dll}", logging.INFO)
+            # Find the dependencies for our platform
+            lang_server_dep = runtime_dependencies.get_single_dep_for_current_platform("CSharpLanguageServer")
+            dotnet_runtime_dep = runtime_dependencies.get_single_dep_for_current_platform("DotNetRuntime")
+            dotnet_path = self._ensure_dotnet_runtime(dotnet_runtime_dep)
+            server_dll_path = self._ensure_language_server(lang_server_dep)
+
+            return dotnet_path, server_dll_path
+
+        def _ensure_dotnet_runtime(self, dotnet_runtime_dep: RuntimeDependency) -> str:
+            """Ensure .NET runtime is available and return the dotnet executable path."""
+            # TODO: use RuntimeDependency util methods instead of custom validation/download logic
+
+            # Check if dotnet is already available on the system
+            system_dotnet = shutil.which("dotnet")
+            if system_dotnet:
+                # Check if it's .NET 9
+                try:
+                    result = subprocess.run([system_dotnet, "--list-runtimes"], capture_output=True, text=True, check=True)
+                    if "Microsoft.NETCore.App 9." in result.stdout:
+                        log.info("Found system .NET 9 runtime")
+                        return system_dotnet
+                except subprocess.CalledProcessError:
+                    pass
+
+            # Download .NET 9 runtime using config
+            return self._ensure_dotnet_runtime_from_config(dotnet_runtime_dep)
+
+        def _ensure_language_server(self, lang_server_dep: RuntimeDependency) -> str:
+            """Ensure language server is available and return the DLL path."""
+            package_name = lang_server_dep.package_name
+            package_version = lang_server_dep.package_version
+
+            server_dir = Path(self._ls_resources_dir) / f"{package_name}.{package_version}"
+            assert lang_server_dep.binary_name is not None
+            server_dll = server_dir / lang_server_dep.binary_name
+
+            if server_dll.exists():
+                log.info(f"Using cached Microsoft.CodeAnalysis.LanguageServer from {server_dll}")
+                return str(server_dll)
+
+            # Download and install the language server
+            log.info(f"Downloading {package_name} version {package_version}...")
+            assert package_version is not None
+            assert package_name is not None
+            package_path = self._download_nuget_package_direct(package_name, package_version)
+
+            # Extract and install
+            self._extract_language_server(lang_server_dep, package_path, server_dir)
+
+            if not server_dll.exists():
+                raise SolidLSPException("Microsoft.CodeAnalysis.LanguageServer.dll not found after extraction")
+
+            # Make executable on Unix systems
+            if platform.system().lower() != "windows":
+                server_dll.chmod(0o755)
+
+            log.info(f"Successfully installed Microsoft.CodeAnalysis.LanguageServer to {server_dll}")
             return str(server_dll)
 
-        # Download and install the language server
-        logger.log(f"Downloading {package_name} version {package_version}...", logging.INFO)
-        assert package_version is not None
-        assert package_name is not None
-        package_path = cls._download_nuget_package_direct(logger, package_name, package_version, solidlsp_settings)
+        @staticmethod
+        def _extract_language_server(lang_server_dep: RuntimeDependency, package_path: Path, server_dir: Path) -> None:
+            """Extract language server files from downloaded package."""
+            extract_path = lang_server_dep.extract_path or "lib/net9.0"
+            source_dir = package_path / extract_path
 
-        # Extract and install
-        cls._extract_language_server(lang_server_dep, package_path, server_dir)
+            if not source_dir.exists():
+                # Try alternative locations
+                for possible_dir in [
+                    package_path / "tools" / "net9.0" / "any",
+                    package_path / "lib" / "net9.0",
+                    package_path / "contentFiles" / "any" / "net9.0",
+                ]:
+                    if possible_dir.exists():
+                        source_dir = possible_dir
+                        break
+                else:
+                    raise SolidLSPException(f"Could not find language server files in package. Searched in {package_path}")
 
-        if not server_dll.exists():
-            raise SolidLSPException("Microsoft.CodeAnalysis.LanguageServer.dll not found after extraction")
+            # Copy files to cache directory
+            server_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source_dir, server_dir, dirs_exist_ok=True)
 
-        # Make executable on Unix systems
-        if platform.system().lower() != "windows":
-            server_dll.chmod(0o755)
+        def _download_nuget_package_direct(self, package_name: str, package_version: str) -> Path:
+            """
+            Download a NuGet package directly from the Azure NuGet feed.
+            Returns the path to the extracted package directory.
+            """
+            azure_feed_url = "https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json"
 
-        logger.log(f"Successfully installed Microsoft.CodeAnalysis.LanguageServer to {server_dll}", logging.INFO)
-        return str(server_dll)
+            # Create temporary directory for package download
+            temp_dir = Path(self._ls_resources_dir) / "temp_downloads"
+            temp_dir.mkdir(parents=True, exist_ok=True)
 
-    @staticmethod
-    def _extract_language_server(lang_server_dep: RuntimeDependency, package_path: Path, server_dir: Path) -> None:
-        """Extract language server files from downloaded package."""
-        extract_path = lang_server_dep.extract_path or "lib/net9.0"
-        source_dir = package_path / extract_path
-
-        if not source_dir.exists():
-            # Try alternative locations
-            for possible_dir in [
-                package_path / "tools" / "net9.0" / "any",
-                package_path / "lib" / "net9.0",
-                package_path / "contentFiles" / "any" / "net9.0",
-            ]:
-                if possible_dir.exists():
-                    source_dir = possible_dir
-                    break
-            else:
-                raise SolidLSPException(f"Could not find language server files in package. Searched in {package_path}")
-
-        # Copy files to cache directory
-        server_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source_dir, server_dir, dirs_exist_ok=True)
-
-    @classmethod
-    def _download_nuget_package_direct(
-        cls, logger: LanguageServerLogger, package_name: str, package_version: str, solidlsp_settings: SolidLSPSettings
-    ) -> Path:
-        """
-        Download a NuGet package directly from the Azure NuGet feed.
-        Returns the path to the extracted package directory.
-        """
-        azure_feed_url = "https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json"
-
-        # Create temporary directory for package download
-        temp_dir = Path(cls.ls_resources_dir(solidlsp_settings)) / "temp_downloads"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # First, get the service index from the Azure feed
-            logger.log("Fetching NuGet service index from Azure feed...", logging.DEBUG)
-            with urllib.request.urlopen(azure_feed_url) as response:
-                service_index = json.loads(response.read().decode())
-
-            # Find the package base address (for downloading packages)
-            package_base_address = None
-            for resource in service_index.get("resources", []):
-                if resource.get("@type") == "PackageBaseAddress/3.0.0":
-                    package_base_address = resource.get("@id")
-                    break
-
-            if not package_base_address:
-                raise SolidLSPException("Could not find package base address in Azure NuGet feed")
-
-            # Construct the download URL for the specific package
-            package_id_lower = package_name.lower()
-            package_version_lower = package_version.lower()
-            package_url = f"{package_base_address.rstrip('/')}/{package_id_lower}/{package_version_lower}/{package_id_lower}.{package_version_lower}.nupkg"
-
-            logger.log(f"Downloading package from: {package_url}", logging.DEBUG)
-
-            # Download the .nupkg file
-            nupkg_file = temp_dir / f"{package_name}.{package_version}.nupkg"
-            urllib.request.urlretrieve(package_url, nupkg_file)
-
-            # Extract the .nupkg file (it's just a zip file)
-            package_extract_dir = temp_dir / f"{package_name}.{package_version}"
-            package_extract_dir.mkdir(exist_ok=True)
-
-            # Use SafeZipExtractor to handle long paths and skip errors
-            extractor = SafeZipExtractor(archive_path=nupkg_file, extract_dir=package_extract_dir, verbose=False)
-            extractor.extract_all()
-
-            # Clean up the nupkg file
-            nupkg_file.unlink()
-
-            logger.log(f"Successfully downloaded and extracted {package_name} version {package_version}", logging.INFO)
-            return package_extract_dir
-
-        except Exception as e:
-            raise SolidLSPException(
-                f"Failed to download package {package_name} version {package_version} from Azure NuGet feed: {e}"
-            ) from e
-
-    @classmethod
-    def _ensure_dotnet_runtime_from_config(
-        cls, logger: LanguageServerLogger, dotnet_runtime_dep: RuntimeDependency, solidlsp_settings: SolidLSPSettings
-    ) -> str:
-        """
-        Ensure .NET 9 runtime is available using runtime dependency configuration.
-        Returns the path to the dotnet executable.
-        """
-        # TODO: use RuntimeDependency util methods instead of custom download logic
-
-        # Check if dotnet is already available on the system
-        system_dotnet = shutil.which("dotnet")
-        if system_dotnet:
-            # Check if it's .NET 9
             try:
-                result = subprocess.run([system_dotnet, "--list-runtimes"], capture_output=True, text=True, check=True)
-                if "Microsoft.NETCore.App 9." in result.stdout:
-                    logger.log("Found system .NET 9 runtime", logging.INFO)
-                    return system_dotnet
-            except subprocess.CalledProcessError:
-                pass
+                # First, get the service index from the Azure feed
+                log.debug("Fetching NuGet service index from Azure feed...")
+                with urllib.request.urlopen(azure_feed_url) as response:
+                    service_index = json.loads(response.read().decode())
 
-        # Download .NET 9 runtime using config
-        dotnet_dir = Path(cls.ls_resources_dir(solidlsp_settings)) / "dotnet-runtime-9.0"
-        assert dotnet_runtime_dep.binary_name is not None, "Runtime dependency must have a binary_name"
-        dotnet_exe = dotnet_dir / dotnet_runtime_dep.binary_name
+                # Find the package base address (for downloading packages)
+                package_base_address = None
+                for resource in service_index.get("resources", []):
+                    if resource.get("@type") == "PackageBaseAddress/3.0.0":
+                        package_base_address = resource.get("@id")
+                        break
 
-        if dotnet_exe.exists():
-            logger.log(f"Using cached .NET runtime from {dotnet_exe}", logging.INFO)
-            return str(dotnet_exe)
+                if not package_base_address:
+                    raise SolidLSPException("Could not find package base address in Azure NuGet feed")
 
-        # Download .NET runtime
-        logger.log("Downloading .NET 9 runtime...", logging.INFO)
-        dotnet_dir.mkdir(parents=True, exist_ok=True)
+                # Construct the download URL for the specific package
+                package_id_lower = package_name.lower()
+                package_version_lower = package_version.lower()
+                package_url = f"{package_base_address.rstrip('/')}/{package_id_lower}/{package_version_lower}/{package_id_lower}.{package_version_lower}.nupkg"
 
-        custom_settings = solidlsp_settings.get_ls_specific_settings(cls.get_language_enum_instance())
-        custom_dotnet_runtime_url = custom_settings.get("dotnet_runtime_url")
-        if custom_dotnet_runtime_url is not None:
-            logger.log(f"Using custom .NET runtime url: {custom_dotnet_runtime_url}", logging.INFO)
-            url = custom_dotnet_runtime_url
-        else:
-            url = dotnet_runtime_dep.url
+                log.debug(f"Downloading package from: {package_url}")
 
-        archive_type = dotnet_runtime_dep.archive_type
+                # Download the .nupkg file
+                nupkg_file = temp_dir / f"{package_name}.{package_version}.nupkg"
+                urllib.request.urlretrieve(package_url, nupkg_file)
 
-        # Download the runtime
-        download_path = dotnet_dir / f"dotnet-runtime.{archive_type}"
-        try:
-            logger.log(f"Downloading from {url}", logging.DEBUG)
-            urllib.request.urlretrieve(url, download_path)
+                # Extract the .nupkg file (it's just a zip file)
+                package_extract_dir = temp_dir / f"{package_name}.{package_version}"
+                package_extract_dir.mkdir(exist_ok=True)
 
-            # Extract the archive
-            if archive_type == "zip":
-                with zipfile.ZipFile(download_path, "r") as zip_ref:
-                    zip_ref.extractall(dotnet_dir)
+                # Use SafeZipExtractor to handle long paths and skip errors
+                extractor = SafeZipExtractor(archive_path=nupkg_file, extract_dir=package_extract_dir, verbose=False)
+                extractor.extract_all()
+
+                # Clean up the nupkg file
+                nupkg_file.unlink()
+
+                log.info(f"Successfully downloaded and extracted {package_name} version {package_version}")
+                return package_extract_dir
+
+            except Exception as e:
+                raise SolidLSPException(
+                    f"Failed to download package {package_name} version {package_version} from Azure NuGet feed: {e}"
+                ) from e
+
+        def _ensure_dotnet_runtime_from_config(self, dotnet_runtime_dep: RuntimeDependency) -> str:
+            """
+            Ensure .NET 9 runtime is available using runtime dependency configuration.
+            Returns the path to the dotnet executable.
+            """
+            # TODO: use RuntimeDependency util methods instead of custom download logic
+
+            # Check if dotnet is already available on the system
+            system_dotnet = shutil.which("dotnet")
+            if system_dotnet:
+                # Check if it's .NET 9
+                try:
+                    result = subprocess.run([system_dotnet, "--list-runtimes"], capture_output=True, text=True, check=True)
+                    if "Microsoft.NETCore.App 9." in result.stdout:
+                        log.info("Found system .NET 9 runtime")
+                        return system_dotnet
+                except subprocess.CalledProcessError:
+                    pass
+
+            # Download .NET 9 runtime using config
+            dotnet_dir = Path(self._ls_resources_dir) / "dotnet-runtime-9.0"
+            assert dotnet_runtime_dep.binary_name is not None, "Runtime dependency must have a binary_name"
+            dotnet_exe = dotnet_dir / dotnet_runtime_dep.binary_name
+
+            if dotnet_exe.exists():
+                log.info(f"Using cached .NET runtime from {dotnet_exe}")
+                return str(dotnet_exe)
+
+            # Download .NET runtime
+            log.info("Downloading .NET 9 runtime...")
+            dotnet_dir.mkdir(parents=True, exist_ok=True)
+
+            custom_dotnet_runtime_url = self._custom_settings.get("dotnet_runtime_url")
+            if custom_dotnet_runtime_url is not None:
+                log.info(f"Using custom .NET runtime url: {custom_dotnet_runtime_url}")
+                url = custom_dotnet_runtime_url
             else:
-                # tar.gz
-                with tarfile.open(download_path, "r:gz") as tar_ref:
-                    tar_ref.extractall(dotnet_dir)
+                url = dotnet_runtime_dep.url
 
-            # Remove the archive
-            download_path.unlink()
+            archive_type = dotnet_runtime_dep.archive_type
 
-            # Make dotnet executable on Unix
-            if platform.system().lower() != "windows":
-                dotnet_exe.chmod(0o755)
+            # Download the runtime
+            download_path = dotnet_dir / f"dotnet-runtime.{archive_type}"
+            try:
+                log.debug(f"Downloading from {url}")
+                urllib.request.urlretrieve(url, download_path)
 
-            logger.log(f"Successfully installed .NET 9 runtime to {dotnet_exe}", logging.INFO)
-            return str(dotnet_exe)
+                # Extract the archive
+                if archive_type == "zip":
+                    with zipfile.ZipFile(download_path, "r") as zip_ref:
+                        zip_ref.extractall(dotnet_dir)
+                else:
+                    # tar.gz
+                    with tarfile.open(download_path, "r:gz") as tar_ref:
+                        tar_ref.extractall(dotnet_dir)
 
-        except Exception as e:
-            raise SolidLSPException(f"Failed to download .NET 9 runtime from {url}: {e}") from e
+                # Remove the archive
+                download_path.unlink()
+
+                # Make dotnet executable on Unix
+                if platform.system().lower() != "windows":
+                    dotnet_exe.chmod(0o755)
+
+                log.info(f"Successfully installed .NET 9 runtime to {dotnet_exe}")
+                return str(dotnet_exe)
+
+            except Exception as e:
+                raise SolidLSPException(f"Failed to download .NET 9 runtime from {url}: {e}") from e
 
     def _get_initialize_params(self) -> InitializeParams:
         """
@@ -551,7 +549,7 @@ class CSharpLanguageServer(SolidLanguageServer):
             # Map LSP message types to Python logging levels
             level_map = {1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO, 4: logging.DEBUG}  # Error  # Warning  # Info  # Log
 
-            self.logger.log(f"LSP: {message_text}", level_map.get(level, logging.DEBUG))
+            log.log(level_map.get(level, logging.DEBUG), f"LSP: {message_text}")
 
         def handle_progress(params: dict) -> None:
             """Handle progress notifications from the language server."""
@@ -559,7 +557,7 @@ class CSharpLanguageServer(SolidLanguageServer):
             value = params.get("value", {})
 
             # Log raw progress for debugging
-            self.logger.log(f"Progress notification received: {params}", logging.DEBUG)
+            log.debug(f"Progress notification received: {params}")
 
             # Handle different progress notification types
             kind = value.get("kind")
@@ -570,22 +568,22 @@ class CSharpLanguageServer(SolidLanguageServer):
                 percentage = value.get("percentage")
 
                 if percentage is not None:
-                    self.logger.log(f"Progress [{token}]: {title} - {message} ({percentage}%)", logging.INFO)
+                    log.debug(f"Progress [{token}]: {title} - {message} ({percentage}%)")
                 else:
-                    self.logger.log(f"Progress [{token}]: {title} - {message}", logging.INFO)
+                    log.info(f"Progress [{token}]: {title} - {message}")
 
             elif kind == "report":
                 message = value.get("message", "")
                 percentage = value.get("percentage")
 
                 if percentage is not None:
-                    self.logger.log(f"Progress [{token}]: {message} ({percentage}%)", logging.INFO)
+                    log.info(f"Progress [{token}]: {message} ({percentage}%)")
                 elif message:
-                    self.logger.log(f"Progress [{token}]: {message}", logging.INFO)
+                    log.info(f"Progress [{token}]: {message}")
 
             elif kind == "end":
                 message = value.get("message", "Operation completed")
-                self.logger.log(f"Progress [{token}]: {message}", logging.INFO)
+                log.info(f"Progress [{token}]: {message}")
 
         def handle_workspace_configuration(params: dict) -> list:
             """Handle workspace/configuration requests from the server."""
@@ -646,30 +644,34 @@ class CSharpLanguageServer(SolidLanguageServer):
         def handle_project_needs_restore(params: dict) -> None:
             return
 
+        def handle_workspace_indexing_complete(params: dict) -> None:
+            self.completions_available.set()
+
         # Set up notification handlers
         self.server.on_notification("window/logMessage", window_log_message)
         self.server.on_notification("$/progress", handle_progress)
         self.server.on_notification("textDocument/publishDiagnostics", do_nothing)
+        self.server.on_notification("workspace/projectInitializationComplete", handle_workspace_indexing_complete)
         self.server.on_request("workspace/configuration", handle_workspace_configuration)
         self.server.on_request("window/workDoneProgress/create", handle_work_done_progress_create)
         self.server.on_request("client/registerCapability", handle_register_capability)
         self.server.on_request("workspace/_roslyn_projectNeedsRestore", handle_project_needs_restore)
 
-        self.logger.log("Starting Microsoft.CodeAnalysis.LanguageServer process", logging.INFO)
+        log.info("Starting Microsoft.CodeAnalysis.LanguageServer process")
 
         try:
             self.server.start()
         except Exception as e:
-            self.logger.log(f"Failed to start language server process: {e}", logging.ERROR)
+            log.info(f"Failed to start language server process: {e}", logging.ERROR)
             raise SolidLSPException(f"Failed to start C# language server: {e}")
 
         # Send initialization
         initialize_params = self._get_initialize_params()
 
-        self.logger.log("Sending initialize request to language server", logging.INFO)
+        log.info("Sending initialize request to language server")
         try:
             init_response = self.server.send.initialize(initialize_params)
-            self.logger.log(f"Received initialize response: {init_response}", logging.DEBUG)
+            log.info(f"Received initialize response: {init_response}")
         except Exception as e:
             raise SolidLSPException(f"Failed to initialize C# language server for {self.repository_root_path}: {e}") from e
 
@@ -698,14 +700,18 @@ class CSharpLanguageServer(SolidLanguageServer):
         self._open_solution_and_projects()
 
         self.initialization_complete.set()
-        self.completions_available.set()
 
-        self.logger.log(
+        log.info(
             "Microsoft.CodeAnalysis.LanguageServer initialized and ready\n"
             "Waiting for language server to index project files...\n"
-            "This may take a while for large projects",
-            logging.INFO,
+            "This may take a while for large projects"
         )
+
+        if self.completions_available.wait(30):  # Wait up to 30 seconds for indexing
+            log.info("Indexing complete")
+        else:
+            log.warning("Timeout waiting for indexing to complete, proceeding anyway")
+            self.completions_available.set()
 
     def _force_pull_diagnostics(self, init_response: dict | InitializeResult) -> None:
         """
@@ -724,7 +730,7 @@ class CSharpLanguageServer(SolidLanguageServer):
                     "workspaceDiagnostics": True,
                 }
             )
-            self.logger.log("Applied diagnostic capabilities hack for better C# diagnostics", logging.DEBUG)
+            log.debug("Applied diagnostic capabilities hack for better C# diagnostics")
 
     def _open_solution_and_projects(self) -> None:
         """
@@ -741,7 +747,7 @@ class CSharpLanguageServer(SolidLanguageServer):
         if solution_file:
             solution_uri = PathUtils.path_to_uri(solution_file)
             self.server.notify.send_notification("solution/open", {"solution": solution_uri})
-            self.logger.log(f"Opened solution file: {solution_file}", logging.INFO)
+            log.debug(f"Opened solution file: {solution_file}")
 
         # Find and open project files
         project_files = []
@@ -753,7 +759,7 @@ class CSharpLanguageServer(SolidLanguageServer):
         if project_files:
             project_uris = [PathUtils.path_to_uri(project_file) for project_file in project_files]
             self.server.notify.send_notification("project/open", {"projects": project_uris})
-            self.logger.log(f"Opened project files: {project_files}", logging.DEBUG)
+            log.debug(f"Opened project files: {project_files}")
 
     @override
     def _get_wait_time_for_cross_file_referencing(self) -> float:
