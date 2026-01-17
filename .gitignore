@@ -254,4 +254,6 @@ cabal.project.local*
 .ghc.environment.*
 
 zz-misc/
-vue-implementation/
+.direnv/
+.envrc
+result
