@@ -502,7 +502,7 @@ class TestMql4LanguageServerSymbolHierarchy:
                     symbol = ref.symbol if hasattr(ref, 'symbol') else ref
                     assert "name" in symbol, "Reference should have name"
                     assert "location" in symbol, "Reference should have location"
-        except signal.SIGALRM:
+        except (signal.ItimerError, OSError):
             pytest.skip("request_referencing_symbols timed out (LSP may not support this method)")
         except Exception as e:
             signal.alarm(0)
@@ -516,7 +516,7 @@ class TestMql4LanguageServerSymbolHierarchy:
         file_path = "ExpertAdvisor.mq4"
 
         def timeout_handler(signum: int, frame: Any) -> None:
-            pytest.skip("request_containing_symbol timed out (LSP may not support this method)")
+            raise TimeoutError("request_containing_symbol timed out")
 
         try:
             signal.signal(signal.SIGALRM, timeout_handler)
@@ -545,7 +545,7 @@ class TestMql4LanguageServerSymbolHierarchy:
             if containing is not None:
                 assert "name" in containing, "Containing symbol should have name"
                 assert "kind" in containing, "Containing symbol should have kind"
-        except signal.SIGALRM:
+        except (signal.ItimerError, OSError, TimeoutError):
             pytest.skip("request_containing_symbol timed out (LSP may not support this method)")
         except Exception as e:
             signal.alarm(0)

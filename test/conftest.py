@@ -1,10 +1,7 @@
 import logging
 import os
-<<<<<<< HEAD
-=======
 from collections.abc import Iterator
 from contextlib import contextmanager
->>>>>>> refs/remotes/upstream/main
 from pathlib import Path
 from typing import Any
 
@@ -161,7 +158,7 @@ def language_server(request: LanguageParamRequest):
         raise ValueError("Language parameter must be provided via pytest.mark.parametrize")
 
     language = request.param
-<<<<<<< HEAD
+
 
     # Show MQL4 LSP version if applicable
     if language == Language.MQL4:
@@ -170,7 +167,7 @@ def language_server(request: LanguageParamRequest):
             from solidlsp.settings import SolidLSPSettings
 
             mql4_ls_dir = os.path.join(
-                SolidLSPSettings(solidlsp_dir=SERENA_MANAGED_DIR_IN_HOME, project_data_relative_path=SERENA_MANAGED_DIR_NAME).ls_resources_dir,
+                SolidLSPSettings(solidlsp_dir=SerenaPaths().serena_user_home_dir, project_data_relative_path=SERENA_MANAGED_DIR_NAME).ls_resources_dir,
                 "Mql4LanguageServer",
                 "mql4-lsp"
             )
@@ -198,17 +195,12 @@ def language_server(request: LanguageParamRequest):
         except Exception as e:
             print(f"\n[MQL4 LSP] Version check skipped: {e}")
 
-    server = create_default_ls(language)
+    server = _create_ls(language)
     server.start()
     try:
         yield server
     finally:
         server.stop()
-=======
-    with start_default_ls_context(language) as ls:
-        yield ls
->>>>>>> refs/remotes/upstream/main
-
 
 @pytest.fixture(scope="module")
 def project(request: LanguageParamRequest):

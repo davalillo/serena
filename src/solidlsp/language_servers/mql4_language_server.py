@@ -22,6 +22,8 @@ from .common import RuntimeDependency, RuntimeDependencyCollection
 if TYPE_CHECKING:
     from solidlsp.ls_config import Language
 
+log = logging.getLogger(__name__)
+
 
 class Mql4LanguageServer(SolidLanguageServer):
     """
@@ -33,16 +35,15 @@ class Mql4LanguageServer(SolidLanguageServer):
     """
 
     def __init__(
-        self, config: LanguageServerConfig, logger: LanguageServerLogger, repository_root_path: str, solidlsp_settings: SolidLSPSettings
+        self, config: LanguageServerConfig, repository_root_path: str, solidlsp_settings: SolidLSPSettings
     ):
         """
         Creates a Mql4LanguageServer instance. This class is not meant to be instantiated directly.
         Use LanguageServer.create() instead.
         """
-        mql4_ls_executable_path = self._setup_runtime_dependencies(logger, config, solidlsp_settings)
+        mql4_ls_executable_path = self._setup_runtime_dependencies(config, solidlsp_settings)
         super().__init__(
             config,
-            logger,
             repository_root_path,
             ProcessLaunchInfo(cmd=mql4_ls_executable_path, cwd=repository_root_path),
             "mql4",
@@ -57,10 +58,7 @@ class Mql4LanguageServer(SolidLanguageServer):
         Waits for server_ready event with a timeout.
         """
         if not self.server_ready.is_set():
-            self.logger.log(
-                "MQL4 LSP server not ready, waiting for initialization...",
-                logging.WARNING,
-            )
+            log.log(logging.WARNING, "MQL4 LSP server not ready, waiting for initialization...")
             import time
             start_time = time.time()
             timeout = 30  # Additional 30 seconds wait
@@ -68,10 +66,7 @@ class Mql4LanguageServer(SolidLanguageServer):
                 time.sleep(0.1)
 
             if not self.server_ready.is_set():
-                self.logger.log(
-                    "MQL4 LSP server still not ready after extended wait, proceeding anyway",
-                    logging.WARNING,
-                )
+                log.log(logging.WARNING, "MQL4 LSP server still not ready after extended wait, proceeding anyway")
 
     def request_definition(self, relative_file_path: str, line: int, column: int) -> list[ls_types.Location]:
         """
@@ -98,7 +93,7 @@ class Mql4LanguageServer(SolidLanguageServer):
 
     @classmethod
     def _setup_runtime_dependencies(
-        cls, logger: LanguageServerLogger, config: LanguageServerConfig, solidlsp_settings: SolidLSPSettings
+        cls, config: LanguageServerConfig, solidlsp_settings: SolidLSPSettings
     ) -> str:
         """
         Setup runtime dependencies for Mql4LanguageServer and return the command to start the server.
@@ -112,7 +107,7 @@ class Mql4LanguageServer(SolidLanguageServer):
         LATEST_RELEASE_BASE = "https://github.com/davalillo/mql4-language-server-releases/releases/latest/download"
         CHECKSUMS_URL = f"{LATEST_RELEASE_BASE}/CHECKSUMS.txt"
 
-        logger.log("[MQL4 LSP] Starting setup for latest version from GitHub releases", logging.INFO)
+        log.log(logging.INFO, "[MQL4 LSP] Starting setup for latest version from GitHub releases")
 
         # Platform-specific configuration
         deps = RuntimeDependencyCollection(
@@ -153,22 +148,22 @@ class Mql4LanguageServer(SolidLanguageServer):
         )
 
         mql4_ls_dir = os.path.join(cls.ls_resources_dir(solidlsp_settings), "mql4-lsp")
-        logger.log(f"[MQL4 LSP] Resource directory: {mql4_ls_dir}", logging.DEBUG)
+        log.log(logging.DEBUG, f"[MQL4 LSP] Resource directory: {mql4_ls_dir}")
 
         # Get dependency for current platform
         try:
             dep = deps.get_single_dep_for_current_platform()
-            logger.log(f"[MQL4 LSP] Platform dependency found: {dep.description}", logging.INFO)
+            log.log(logging.INFO, f"[MQL4 LSP] Platform dependency found: {dep.description}")
         except RuntimeError:
             dep = None
-            logger.log("[MQL4 LSP] No prebuilt binary available for current platform", logging.WARNING)
+            log.log(logging.WARNING, "[MQL4 LSP] No prebuilt binary available for current platform")
 
         if dep is None:
             # Try system-installed binary as fallback
-            logger.log("[MQL4 LSP] No platform-specific binary, checking system PATH...", logging.INFO)
+            log.log(logging.INFO, "[MQL4 LSP] No platform-specific binary, checking system PATH...")
             system_ls = shutil.which("mql4-lsp-server")
             if system_ls:
-                logger.log(f"[MQL4 LSP] Found system-installed binary at: {system_ls}", logging.INFO)
+                log.log(logging.INFO, f"[MQL4 LSP] Found system-installed binary at: {system_ls}")
                 return system_ls
             raise FileNotFoundError(
                 "MQL4 Language Server is not available for this platform.\n"
@@ -178,68 +173,54 @@ class Mql4LanguageServer(SolidLanguageServer):
 
         # Determine executable path
         mql4_ls_executable_path = deps.binary_path(mql4_ls_dir)
-        logger.log(f"[MQL4 LSP] Expected executable path: {mql4_ls_executable_path}", logging.DEBUG)
+        log.log(logging.DEBUG, f"[MQL4 LSP] Expected executable path: {mql4_ls_executable_path}")
 
         # Pre-download checksums from latest release for verification
-        logger.log("[MQL4 LSP] Fetching checksums from latest GitHub release...", logging.INFO)
-        checksums = cls._download_and_parse_checksums(CHECKSUMS_URL, logger)
+        log.log(logging.INFO, "[MQL4 LSP] Fetching checksums from latest GitHub release...")
+        checksums = cls._download_and_parse_checksums(CHECKSUMS_URL)
 
         # Step 1: Check if binary already exists locally and verify against latest release
         if os.path.exists(mql4_ls_executable_path):
-            logger.log(f"[MQL4 LSP] Binary found in cache: {mql4_ls_executable_path}", logging.INFO)
+            log.log(logging.INFO, f"[MQL4 LSP] Binary found in cache: {mql4_ls_executable_path}")
 
             if checksums and dep.binary_name in checksums:
                 # Compare local checksum with latest release checksum
-                local_checksum = cls._calculate_local_checksum(mql4_ls_executable_path, logger)
+                local_checksum = cls._calculate_local_checksum(mql4_ls_executable_path)
                 expected_checksum = checksums[dep.binary_name]
 
                 if local_checksum == expected_checksum:
-                    logger.log(
-                        "[MQL4 LSP] Local binary matches latest release, using cached version",
-                        logging.INFO,
-                    )
-                    return cls._verify_and_set_executable(mql4_ls_executable_path, logger)
+                    log.log(logging.INFO, "[MQL4 LSP] Local binary matches latest release, using cached version")
+                    return cls._verify_and_set_executable(mql4_ls_executable_path)
                 else:
-                    logger.log(
-                        "[MQL4 LSP] Local binary outdated (checksum mismatch), downloading latest version...",
-                        logging.INFO,
-                    )
-                    logger.log(
-                        f"[MQL4 LSP] Local: {local_checksum[:16] if local_checksum else 'N/A'}... vs "
-                        f"Latest: {expected_checksum[:16]}...",
-                        logging.DEBUG,
-                    )
+                    log.log(logging.INFO, "[MQL4 LSP] Local binary outdated (checksum mismatch), downloading latest version...")
+                    log.log(logging.DEBUG, f"[MQL4 LSP] Local: {local_checksum[:16] if local_checksum else 'N/A'}... vs Latest: {expected_checksum[:16]}...")
             else:
-                logger.log(
-                    "[MQL4 LSP] Could not verify against latest release checksums, "
-                    "using cached version",
-                    logging.WARNING,
-                )
-                return cls._verify_and_set_executable(mql4_ls_executable_path, logger)
+                log.log(logging.WARNING, "[MQL4 LSP] Could not verify against latest release checksums, using cached version")
+                return cls._verify_and_set_executable(mql4_ls_executable_path)
 
-        logger.log("[MQL4 LSP] Binary not in cache or outdated, attempting download...", logging.INFO)
+        log.log(logging.INFO, "[MQL4 LSP] Binary not in cache or outdated, attempting download...")
 
         # Log expected checksum if available
         if checksums and dep.binary_name in checksums:
             expected_hash = checksums[dep.binary_name]
-            logger.log(f"[MQL4 LSP] Expected SHA256 for {dep.binary_name}: {expected_hash[:16]}...", logging.INFO)
+            log.log(logging.INFO, f"[MQL4 LSP] Expected SHA256 for {dep.binary_name}: {expected_hash[:16]}...")
         else:
-            logger.log(f"[MQL4 LSP] WARNING: No checksum found for {dep.binary_name}", logging.WARNING)
+            log.log(logging.WARNING, f"[MQL4 LSP] WARNING: No checksum found for {dep.binary_name}")
 
         # Step 2: Download the binary
         os.makedirs(mql4_ls_dir, exist_ok=True)
         try:
-            logger.log(f"[MQL4 LSP] Downloading from: {dep.url}", logging.INFO)
-            deps.install(logger, mql4_ls_dir)
-            logger.log("[MQL4 LSP] Download completed", logging.INFO)
+            log.log(logging.INFO, f"[MQL4 LSP] Downloading from: {dep.url}")
+            deps.install(mql4_ls_dir)
+            log.log(logging.INFO, "[MQL4 LSP] Download completed")
         except Exception as e:
-            logger.log(f"[MQL4 LSP] Download failed: {e}", logging.ERROR)
+            log.log(logging.ERROR, f"[MQL4 LSP] Download failed: {e}")
 
             # Fallback to system binary if download fails
-            logger.log("[MQL4 LSP] Attempting fallback to system binary...", logging.WARNING)
+            log.log(logging.WARNING, "[MQL4 LSP] Attempting fallback to system binary...")
             system_ls = shutil.which("mql4-lsp-server")
             if system_ls:
-                logger.log(f"[MQL4 LSP] Using system binary at: {system_ls}", logging.INFO)
+                log.log(logging.INFO, f"[MQL4 LSP] Using system binary at: {system_ls}")
                 return system_ls
 
             raise FileNotFoundError(
@@ -250,10 +231,10 @@ class Mql4LanguageServer(SolidLanguageServer):
 
         # Step 4: Verify binary exists after download
         if not os.path.exists(mql4_ls_executable_path):
-            logger.log(f"[MQL4 LSP] ERROR: Binary not found after download at {mql4_ls_executable_path}", logging.ERROR)
+            log.log(logging.ERROR, f"[MQL4 LSP] ERROR: Binary not found after download at {mql4_ls_executable_path}")
             system_ls = shutil.which("mql4-lsp-server")
             if system_ls:
-                logger.log(f"[MQL4 LSP] Falling back to system binary: {system_ls}", logging.WARNING)
+                log.log(logging.WARNING, f"[MQL4 LSP] Falling back to system binary: {system_ls}")
                 return system_ls
             raise FileNotFoundError(
                 f"MQL4 LSP executable not found at {mql4_ls_executable_path}.\n"
@@ -263,31 +244,31 @@ class Mql4LanguageServer(SolidLanguageServer):
         # Step 5: Verify SHA256 checksum if available
         if checksums and dep.binary_name and dep.binary_name in checksums:
             expected_hash = checksums[dep.binary_name]
-            logger.log("[MQL4 LSP] Verifying SHA256 checksum...", logging.INFO)
+            log.log(logging.INFO, "[MQL4 LSP] Verifying SHA256 checksum...")
             try:
                 with open(mql4_ls_executable_path, "rb") as f:
                     actual_hash = hashlib.sha256(f.read()).hexdigest()
-                logger.log(f"[MQL4 LSP] Actual SHA256:   {actual_hash[:16]}...", logging.DEBUG)
+                log.log(logging.DEBUG, f"[MQL4 LSP] Actual SHA256:   {actual_hash[:16]}...")
                 if actual_hash == expected_hash:
-                    logger.log("[MQL4 LSP] SHA256 verification PASSED", logging.INFO)
+                    log.log(logging.INFO, "[MQL4 LSP] SHA256 verification PASSED")
                 else:
-                    logger.log("[MQL4 LSP] SHA256 verification FAILED!", logging.ERROR)
-                    logger.log(f"[MQL4 LSP] Expected: {expected_hash}", logging.ERROR)
-                    logger.log(f"[MQL4 LSP] Actual:   {actual_hash}", logging.ERROR)
+                    log.log(logging.ERROR, "[MQL4 LSP] SHA256 verification FAILED!")
+                    log.log(logging.ERROR, f"[MQL4 LSP] Expected: {expected_hash}")
+                    log.log(logging.ERROR, f"[MQL4 LSP] Actual:   {actual_hash}")
                     # Remove corrupted file
                     os.remove(mql4_ls_executable_path)
                     raise RuntimeError("SHA256 checksum verification failed. Binary may be corrupted.")
             except Exception as e:
-                logger.log(f"[MQL4 LSP] Error verifying checksum: {e}", logging.ERROR)
+                log.log(logging.ERROR, f"[MQL4 LSP] Error verifying checksum: {e}")
                 # Continue anyway - checksum verification is optional
         else:
-            logger.log("[MQL4 LSP] No checksum available, skipping verification", logging.WARNING)
+            log.log(logging.WARNING, "[MQL4 LSP] No checksum available, skipping verification")
 
         # Step 6: Set executable permissions and return
-        return cls._verify_and_set_executable(mql4_ls_executable_path, logger)
+        return cls._verify_and_set_executable(mql4_ls_executable_path)
 
     @staticmethod
-    def _verify_and_set_executable(executable_path: str, logger: LanguageServerLogger) -> str:
+    def _verify_and_set_executable(executable_path: str) -> str:
         """
         Verify the executable exists and has correct permissions, then return the path.
         """
@@ -297,13 +278,13 @@ class Mql4LanguageServer(SolidLanguageServer):
         # Make executable on Unix-like systems
         if os.name != "nt":
             os.chmod(executable_path, 0o755)
-            logger.log(f"[MQL4 LSP] Set executable permissions on {executable_path}", logging.DEBUG)
+            log.log(logging.DEBUG, f"[MQL4 LSP] Set executable permissions on {executable_path}")
 
-        logger.log(f"[MQL4 LSP] Language Server ready at {executable_path}", logging.INFO)
+        log.log(logging.INFO, f"[MQL4 LSP] Language Server ready at {executable_path}")
         return executable_path
 
     @staticmethod
-    def _download_and_parse_checksums(checksums_url: str, logger: LanguageServerLogger) -> dict[str, str] | None:
+    def _download_and_parse_checksums(checksums_url: str) -> dict[str, str] | None:
         """
         Downloads and parses the checksums file from the latest GitHub release.
         Returns a dictionary mapping filenames to SHA256 hashes, or None if parsing fails.
@@ -313,10 +294,10 @@ class Mql4LanguageServer(SolidLanguageServer):
 
         checksums: dict[str, str] = {}
         try:
-            logger.log(f"[MQL4 LSP] Fetching checksums from latest release: {checksums_url}", logging.INFO)
+            log.log(logging.INFO, f"[MQL4 LSP] Fetching checksums from latest release: {checksums_url}")
             with urllib.request.urlopen(checksums_url, timeout=10) as response:
                 checksums_content = response.read().decode("utf-8")
-                logger.log("[MQL4 LSP] Checksums file downloaded successfully", logging.DEBUG)
+                log.log(logging.DEBUG, "[MQL4 LSP] Checksums file downloaded successfully")
 
             # Parse checksums (format: "sha256hash  filename")
             for line in checksums_content.splitlines():
@@ -328,17 +309,17 @@ class Mql4LanguageServer(SolidLanguageServer):
                     file_hash, file_name = parts
                     checksums[file_name] = file_hash
 
-            logger.log(f"[MQL4 LSP] Parsed {len(checksums)} checksums from latest release", logging.DEBUG)
+            log.log(logging.DEBUG, f"[MQL4 LSP] Parsed {len(checksums)} checksums from latest release")
             return checksums if checksums else None
         except urllib.error.URLError as e:
-            logger.log(f"[MQL4 LSP] Failed to fetch checksums from latest release: {e}", logging.WARNING)
+            log.log(logging.WARNING, f"[MQL4 LSP] Failed to fetch checksums from latest release: {e}")
             return None
         except Exception as e:
-            logger.log(f"[MQL4 LSP] Error parsing checksums file: {e}", logging.WARNING)
+            log.log(logging.WARNING, f"[MQL4 LSP] Error parsing checksums file: {e}")
             return None
 
     @staticmethod
-    def _calculate_local_checksum(executable_path: str, logger: LanguageServerLogger) -> str | None:
+    def _calculate_local_checksum(executable_path: str) -> str | None:
         """
         Calculates the SHA256 checksum of a local executable.
         Returns the hexadecimal hash string, or None if calculation fails.
@@ -346,13 +327,13 @@ class Mql4LanguageServer(SolidLanguageServer):
         import hashlib
 
         try:
-            logger.log(f"[MQL4 LSP] Calculating checksum for local binary: {executable_path}", logging.DEBUG)
+            log.log(logging.DEBUG, f"[MQL4 LSP] Calculating checksum for local binary: {executable_path}")
             with open(executable_path, "rb") as f:
                 file_hash = hashlib.sha256(f.read()).hexdigest()
-            logger.log(f"[MQL4 LSP] Local checksum: {file_hash[:16]}...", logging.DEBUG)
+            log.log(logging.DEBUG, f"[MQL4 LSP] Local checksum: {file_hash[:16]}...")
             return file_hash
         except Exception as e:
-            logger.log(f"[MQL4 LSP] Error calculating local checksum: {e}", logging.WARNING)
+            log.log(logging.WARNING, f"[MQL4 LSP] Error calculating local checksum: {e}")
             return None
 
     @staticmethod
@@ -446,7 +427,7 @@ class Mql4LanguageServer(SolidLanguageServer):
                 self.server_ready.set()
 
         def window_log_message(msg: dict[str, Any]) -> None:
-            self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
+            log.log(logging.INFO, f"LSP: window/logMessage: {msg}")
 
         # Register all necessary handlers
         self.server.on_request("client/registerCapability", register_capability_handler)
@@ -458,25 +439,22 @@ class Mql4LanguageServer(SolidLanguageServer):
         self.server.on_notification("language/actionableNotification", do_nothing)
         self.server.on_notification("experimental/serverStatus", check_experimental_status)
 
-        self.logger.log("Starting MQL4 LSP server process", logging.INFO)
+        log.log(logging.INFO, "Starting MQL4 LSP server process")
         self.server.start()
 
         # Send initialize request
         initialize_params = self._get_initialize_params(self.repository_root_path)
-        self.logger.log(
-            "Sending initialize request from LSP client to MQL4 LSP server and awaiting response",
-            logging.INFO,
-        )
+        log.log(logging.INFO, "Sending initialize request from LSP client to MQL4 LSP server and awaiting response")
         init_response = self.server.send.initialize(cast(InitializeParams, initialize_params))
 
         # Store server capabilities for later use
         assert "capabilities" in init_response
         server_capabilities: dict[str, Any] = cast(dict[str, Any], init_response["capabilities"])
-        self.logger.log(f"MQL4 LSP Server capabilities: {server_capabilities}", logging.INFO)
+        log.log(logging.INFO, f"MQL4 LSP Server capabilities: {server_capabilities}")
 
         # Log which methods are supported by the server
         text_doc_caps = server_capabilities.get("textDocument", {})
-        self.logger.log(f"textDocument capabilities: {text_doc_caps}", logging.DEBUG)
+        log.log(logging.DEBUG, f"textDocument capabilities: {text_doc_caps}")
 
         # Mark server as initialized
         self.server.notify.initialized({})
@@ -487,4 +465,4 @@ class Mql4LanguageServer(SolidLanguageServer):
         # MQL4 LSP server doesn't send experimental/serverStatus notification
         # Set server_ready immediately after successful initialization
         self.server_ready.set()
-        self.logger.log("MQL4 LSP server is ready", logging.INFO)
+        log.log(logging.INFO, "MQL4 LSP server is ready")
