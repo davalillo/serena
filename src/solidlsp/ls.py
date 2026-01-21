@@ -891,10 +891,7 @@ class SolidLanguageServer(ABC):
         :return: List of SelectionRange objects or None
         """
         if not self.server_started:
-            self.logger.log(
-                "request_selection_range called before Language Server started",
-                logging.ERROR,
-            )
+            log.error("request_selection_range called before Language Server started")
             raise SolidLSPException("Language Server not started")
 
         with self.open_file(relative_file_path):
@@ -1737,9 +1734,9 @@ class SolidLanguageServer(ABC):
                 # SelectionRange is available and returned results
                 # For now, we still use documentSymbol for full symbol information
                 # TODO: Implement direct conversion from SelectionRange to UnifiedSymbolInformation
-                self.logger.log(f"selectionRange available and returned {len(selection_ranges)} ranges", logging.DEBUG)
+                log.debug(f"selectionRange available and returned {len(selection_ranges)} ranges")
         except Exception as e:
-            self.logger.log(f"selectionRange not available or failed: {e}, falling back to documentSymbol", logging.DEBUG)
+            log.debug(f"selectionRange not available or failed: {e}, falling back to documentSymbol")
 
         # Fallback to documentSymbol (existing implementation)
         document_symbols = self.request_document_symbols(relative_file_path)
