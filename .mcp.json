@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "serena-mql": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/davalillo/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "claude-code",
+        "--project",
+        "/home/guillermo/source/serena-mql4"
+      ],
+      "env": {}
+    }
+  }
+}
