@@ -1,13 +1,95 @@
-# latest
+# Unreleased (main)
+
 Status of the `main` branch. Changes prior to the next official version change will appear here.
 
+* General:
+  - Support `serena --version` CLI command for displaying the current version #1347
+  - Fix: Check for ignored path ignored `.git` folder only at the top level, not in every subdirectory (`Project._is_ignored_relative_path`) #1350
+  - `GetSymbolsOverviewTool`: ignored paths were not respected in LSP variant (fix in `SolidLanguageServer`)
+  - Fix: Duplicate comments in re-saved YAML configuration files #1285
+
+* JetBrains:
+  - `Move` and `SafeDelete` tools: transform empty string to None (counteracts client errors)
+
+* Dependencies:
+  - `pywebview`: Switch back to official release (new version 6.2) #1253
+
+
+* Language Servers:
+  - Fix: clangd capability checks now tolerate valid initialize response shape differences and invalidate cached C++ document symbols when clangd/compile commands context changes #1359                                                                                                                                                                                                            
+  - Fix: `rename_symbol` for Vue files now correctly propagates edits to the TypeScript server, enabling cross-file renames in `.vue` files 
+  - Fix: Lean4 stale cache — empty document symbol responses (returned before `lake build` completes) are no longer persisted, preventing symbols from being permanently hidden #1356
+
+
+# v1.1.2 (2026-04-14)
+
+* General:
+  - Support environment variable `SERENA_USAGE_REPORTING` (set to `false` to disable usage reporting)
+  - Extended the list of always ignored directories (by language servers) with common cases.
+  - Improve exposed toolset: With mode switching no longer being a feature, we now fully apply tool exclusions 
+    defined by modes when in a single-project context (limiting exposed tools to a minimum)
+  - Fix: When scanning for `.gitignore` files, the presence of files that could not be made relative 
+    to the project root would cause the scan to fail. #1317
+
+* Dashboard:
+  - Fix handling of read news, saving each read news entry separately #1338
+
+* JetBrains: 
+  - Improve handling of `relative_path` parameter 
+     - Improve its documentation to avoid usage errors
+     - Replace escaped characters in `relative_path` with their unescaped counterparts (&lt; and &gt;)
+     - `FindSymbolTool`: Force `search_deps=True` if `relative_path` pertains to external dependencies.
+
+* Language Servers:
+  - Add mSL (mIRC Scripting Language) support (custom pygls-based language server; symbols, references, definitions)
+  - Fix initialisation issues in Vue language server #1333
+
+# v1.1.1 (2026-04-12)
+
+* General:
+  - Enable cert verification for HTTPS request to oraios-software.de #1320
+
+* JetBrains:
+  - `JetBrainsRenameTool` can now also rename occurrences in comments and text.
+
+* Language Servers:
+  - Fix Dart LSP returning only symbol name as body instead of full method body.
+
+
+# v1.1.0 (2026-04-11)
+
+* General:
+  - **Major**: Add commands for hooks and documentation of recommended setup. Consider setting up the [recommended hooks](https://oraios.github.io/serena/02-usage/030_clients.html) !
+  - Add `serena init` and `serena setup` commands
+  - Rework installation instructions, switching to releases on pypi for distribution. Please update your mcp startup commands!
+  - Add minimal usage data collection on startup (only Serena version, language backend, OS, dashboard enabled status; no personally identifiable information)
+  - Fix: git commit id in Serena version strings was incorrect
+
+* Language Servers:
+  - Add support for Haxe via vshaxe/haxe-language-server. Requires Haxe compiler 3.4.0+ and Node.js. Auto-discovered from the vshaxe VSCode extension or configurable via `ls_path` in `ls_specific_settings`.
+  - Add Crystal language support (uses [Crystalline](https://github.com/elbywan/crystalline) language server)
+  - Fix: Reactivation of the same project restarted language servers #1280
+
+* JetBrains:
+  - `JetBrainsFindReferencingSymbolTool`: Include context lines (when using plugin version 2023.2.15+)
+
+* Dashboard:
+  - Add version display
+  - Fix: Dashboard viewer (Windows): Add a parent monitoring thread to ensure termination.
+    Some clients would terminate the MCP server in a way that did not ensure proper termination.
+  - Fix: Manual server shutdown triggered by GUI tool/dashboard not cleaning everything up.
+
+# v1.0.0 (2026-04-03)
 
 * General:
     * Add monorepo/multi-language support
         * Project configuration files (`project.yml`) can now define multiple languages.
           Auto-detection adds only the most prominent language by default.
         * Additional languages can be conveniently added via the Dashboard while a project is already activated.
-    * The current project can be activated automatically even when the MCP configuration is global (through the --project-from-cwd flag)
+    * Add support for querying projects other than the currently active one via new tools `QueryProjectTool` and `ListQueryableProjectsTool`.
+      The `QueryProjectTool` allows Serena tools to be called on other projects.
+        * For the LSP backend, calling symbolic tools require a project server to be spawned that will launch the respective language servers
+        * For the JetBrains backend, all projects for which IDE instances are open can directly be queried
     * Support overloaded symbols in `FindSymbolTool` and related tools
         * Name paths of overloaded symbols now include an index (e.g., `myOverloadedFunction[2]`)
         * Responses of the Java language server, which handled this in its own way, are now adapted accordingly,
@@ -15,29 +97,43 @@ Status of the `main` branch. Changes prior to the next official version change w
     * Major extensions to the dashboard, which now serves as a central web interface for Serena
         * View current configuration
         * View news which can be marked as read
-        * View the executions, with the possibility to cancel running/scheduled executions 
+        * View the executions, with the possibility to cancel running/scheduled executions
         * View tool usage statistics
         * View and create memories and edit the serena configuration file
-    * New two-tier caching of language server document symbols and considerable performance improvements surrounding symbol retrieval/indexing
+        * Log page now has save (downloads a snapshot) and clear (resets log view) buttons alongside the existing copy button
+    * Language server backend:
+        * New two-tier caching of language server document symbols and considerable performance improvements surrounding symbol retrieval/indexing
+        * Allow passing language server-specific settings through `ls_specific_settings` field (in `serena_config.yml`)
+    * Add the JetBrains language backend as an alternative to language servers
+    * Improve management of Serena projects
+        * Facilitate project activation based on the current directory (through the `--project-from-cwd` parameter)
+        * Add notion of a "single-project context" (flag `single_project`), allowing user-defined contexts to behave
+          like the built-in `ide-assistant` context (where the available tools are restricted to ones required by the active
+          project and project changes are disabled)
+        * The location of Serena's project-specific data folder can now be flexibly configured, allowing, in particular,
+          locations outside of the project folder, thus improving support for read-only projects.
+        * Add support for `project.local.yml` for local overrides that should not be versioned 
     * Various fixes related to indexing, special paths and determination of ignored paths
-    * Decreased `TOOL_DEFAULT_MAX_ANSWER_LENGTH` to be in accordance with (below) typical max-tokens configurations
-    * Allow passing language server specific settings through `ls_specific_settings` field (in `serena_config.yml`)
-    * Add notion of a "single-project context" (flag `single_project`), allowing user-defined contexts to behave 
-      like the built-in `ide-assistant` context (where the available tools are restricted to ones required by the active 
-      project and project changes are disabled)
-
-* Client support:
-    * New mode `oaicompat-agent` and extensions enhancing OpenAI tool compatibility, permitting Serena to work with llama.cpp
+    * Memories:
+        * Add support for global memories (shared across projects) 
+        * Add `read_only_memory_patterns` configuration option
+        * Add `ignored_memory_patterns` configuration option
+    * Improved client support, e.g. new mode `oaicompat-agent` and extensions enhancing OpenAI tool compatibility
 
 * Tools:
-  * *New tool*: `jet_brains_type_hierarchy`
-  * Symbol information (hover, docstring, quick-info) is now provided as part of `find_symbol` and related tool responses.
+  * Additional symbol meta-information (hover, docstring, quick-info) is now provided as part of `find_symbol` and related tool responses.
+  * Added `QueryProjectTool` and `ListQueryableProjectTool` (see above)
   * Added `RenameSymbolTool` for renaming symbols across the codebase (if LS supports this operation).
   * Replaced `ReplaceRegexTool` with `ReplaceContentTool`, which supports both plain text and regex-based replacements
-    (and which requires no escaping in the replacement text, making it more robust) 
+    (and which requires no escaping in the replacement text, making it more robust)
+  * Add JetBrains tools which leverage the corresponding JetBrains language backend through our plugin
+  * Decreased `TOOL_DEFAULT_MAX_ANSWER_LENGTH` to be in accordance with (below) typical max-tokens configurations
 
 * Language support:
 
+  * **Add support for Lean 4** via built-in `lean --server` with cross-file reference support (requires `lean` and `lake` via [elan](https://github.com/leanprover/elan))
+  * **Add support for OCaml** via ocaml-lsp-server with cross-file reference support on OCaml 5.2+ (requires opam; see [setup guide](docs/03-special-guides/ocaml_setup_guide_for_serena.md))
+  * **Add Phpactor as alternative PHP language server** (specify `php_phpactor` as language; requires PHP 8.1+)
   * **Add support for Fortran** via fortls language server (requires `pip install fortls`)
   * **Add partial support for Groovy** requires user-provided Groovy language server JAR (see [setup guide](docs/03-special-guides/groovy_setup_guide_for_serena.md))
   * **Add support for Julia** via LanguageServer.jl
@@ -61,9 +157,10 @@ Status of the `main` branch. Changes prior to the next official version change w
   * **Add support for PowerShell** via PowerShell Editor Services (PSES). Requires `pwsh` (PowerShell Core) to be installed and available in PATH. Supports symbol navigation, go-to-definition, and within-file references for .ps1 files.
   * **Add support for MATLAB** via the official MathWorks MATLAB Language Server. Requires MATLAB R2021b or later and Node.js. Set `MATLAB_PATH` environment variable or configure `matlab_path` in `ls_specific_settings`. Supports .m, .mlx, and .mlapp files with code completion, diagnostics, go-to-definition, find references, document symbols, formatting, and rename.
   * **Add support for Pascal** via the official Pascal Language Server.
+  * **C/C++ alternate LS (ccls)**: Add experimental, opt-in support for ccls as an alternative backend to clangd. Enable via `cpp_ccls` in project configuration. Requires `ccls` installed and ideally a `compile_commands.json` at repo root.
+  * **Add support for Solidity** via the Nomic Foundation `@nomicfoundation/solidity-language-server` (automatically installed via npm)
 
-
-# 0.1.4
+# v0.1.4 (2025-08-15)
 
 ## Summary
 
@@ -107,7 +204,7 @@ Fixes:
   default shell reconfiguration imposed by Claude Code)
 * Additional wait for initialization in C# language server before requesting references, allowing cross-file references to be found.
 
-# 0.1.3
+# v0.1.3 (2025-07-22)
 
 ## Summary
 

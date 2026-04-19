@@ -67,6 +67,7 @@ class Solargraph(SolidLanguageServer):
             "doc",  # Generated documentation
             "node_modules",  # Node modules (for Rails with JS)
             "storage",  # Active Storage files (Rails)
+            ".ruby-lsp",
         ]
         return super().is_ignored_dirname(dirname) or dirname in ruby_ignored_dirs
 
@@ -320,7 +321,6 @@ class Solargraph(SolidLanguageServer):
             if params.get("type") == "ServiceReady" and params.get("message") == "Service is ready.":
                 log.info("Solargraph service is ready.")
                 self.analysis_complete.set()
-                self.completions_available.set()
 
         def execute_client_command_handler(params: dict) -> list:
             return []
@@ -364,4 +364,3 @@ class Solargraph(SolidLanguageServer):
             log.warning("Timeout waiting for Solargraph analysis completion, proceeding anyway")
             # Fallback: assume analysis is complete after timeout
             self.analysis_complete.set()
-            self.completions_available.set()

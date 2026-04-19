@@ -14,7 +14,6 @@ from sensai.util.string import ToStringMixin
 from serena.config.serena_config import SerenaPaths, ToolInclusionDefinition
 from serena.constants import (
     DEFAULT_CONTEXT,
-    DEFAULT_MODES,
     INTERNAL_MODE_YAMLS_DIR,
     SERENA_FILE_ENCODING,
     SERENAS_OWN_CONTEXT_YAMLS_DIR,
@@ -54,7 +53,13 @@ class SerenaAgentMode(ToolInclusionDefinition, ToStringMixin):
         """Print an overview of the mode."""
         print(f"{self.name}:\n {self.description}")
         if self.excluded_tools:
-            print(" excluded tools:\n  " + ", ".join(sorted(self.excluded_tools)))
+            print(" excluded tools:\n    " + ", ".join(sorted(self.excluded_tools)))
+        if self.included_optional_tools:
+            print(" included optional tools:\n    " + ", ".join(sorted(self.included_optional_tools)))
+        if self.fixed_tools:
+            print(" fixed tools:\n    " + ", ".join(sorted(self.fixed_tools)))
+        if self.prompt:
+            print(" defines initial prompt")
 
     @classmethod
     def from_yaml(cls, yaml_path: str | Path) -> Self:
@@ -116,11 +121,6 @@ class SerenaAgentMode(ToolInclusionDefinition, ToStringMixin):
     def list_custom_mode_names(cls) -> list[str]:
         """Names of all custom modes defined by the user."""
         return [f.stem for f in Path(SerenaPaths().user_modes_dir).glob("*.yml")]
-
-    @classmethod
-    def load_default_modes(cls) -> list[Self]:
-        """Load the default modes (interactive and editing)."""
-        return [cls.from_name(mode) for mode in DEFAULT_MODES]
 
     @classmethod
     def load(cls, name_or_path: str | Path) -> Self:
