@@ -19,7 +19,6 @@ LSP Methods tested:
 - textDocument/completion (request_completions)
 """
 
-
 from typing import Any
 
 import pytest
@@ -69,7 +68,7 @@ class TestMql4LanguageServerHover:
 
         # Hover should return some response (even if None is valid)
         # The LSP spec requires hover support
-        assert hover is not None or True, "Hover should return a response"
+        assert hover is not None, "Hover should return a response"
 
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_hover_on_global_variable(self, language_server: SolidLanguageServer) -> None:
@@ -230,9 +229,7 @@ class TestMql4LanguageServerRenameSymbol:
         try:
             # Request rename
             new_name = "MagicNumberRenamed"
-            edit = language_server.request_rename_symbol_edit(
-                file_path, sel_start["line"], sel_start["character"], new_name
-            )
+            edit = language_server.request_rename_symbol_edit(file_path, sel_start["line"], sel_start["character"], new_name)
 
             # Edit should be returned (or None if rename not supported)
             if edit is not None:
@@ -258,9 +255,7 @@ class TestMql4LanguageServerRenameSymbol:
         try:
             # Request rename
             new_name = "CheckForTradingSignals"
-            edit = language_server.request_rename_symbol_edit(
-                file_path, sel_start["line"], sel_start["character"], new_name
-            )
+            edit = language_server.request_rename_symbol_edit(file_path, sel_start["line"], sel_start["character"], new_name)
 
             # Verify response structure
             if edit is not None:
@@ -316,9 +311,6 @@ class TestMql4LanguageServerTextOperations:
         """Test inserting text at a specific position."""
         file_path = "ExpertAdvisor.mq4"
 
-        # Get current content first
-        original_content = language_server.retrieve_full_file_content(file_path)
-
         # Find a position to insert (end of file or safe location)
         symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
         if not symbols or not symbols[0]:
@@ -372,10 +364,10 @@ class TestMql4LanguageServerTextOperations:
                 result = language_server.delete_text_between_positions(
                     file_path,
                     {"line": delete_start_line, "character": delete_start_col},
-                    {"line": delete_end_line, "character": delete_end_col}
+                    {"line": delete_end_line, "character": delete_end_col},
                 )
                 # Should return a valid result (string with new content, dict position, or None)
-                assert result is None or isinstance(result, (dict, str)), f"Expected None, dict, or str, got {type(result)}"
+                assert result is None or isinstance(result, dict | str), f"Expected None, dict, or str, got {type(result)}"
         except Exception as e:
             # Delete may fail if position is invalid
             pytest.skip(f"Delete operation failed: {e}")
@@ -449,10 +441,7 @@ class TestMql4LanguageServerFullSymbolTree:
         if symbols:
             symbol_names = [s.get("name", "") for s in symbols]
             # May contain file-level symbol or function symbols
-            has_eap_symbols = any(
-                "ExpertAdvisor" in name or name in ["OnInit", "OnTick", "OnDeinit"]
-                for name in symbol_names
-            )
+            has_eap_symbols = any("ExpertAdvisor" in name or name in ["OnInit", "OnTick", "OnDeinit"] for name in symbol_names)
             assert has_eap_symbols or len(symbols) == 0, "Should find EA-related symbols"
 
 
@@ -488,9 +477,7 @@ class TestMql4LanguageServerSymbolHierarchy:
             # Get referencing symbols with timeout
             signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(5)
-            refs = language_server.request_referencing_symbols(
-                file_path, sel_start["line"], sel_start["character"]
-            )
+            refs = language_server.request_referencing_symbols(file_path, sel_start["line"], sel_start["character"])
             signal.alarm(0)
 
             # Should find references (at minimum, the definition itself)
@@ -499,7 +486,7 @@ class TestMql4LanguageServerSymbolHierarchy:
             if refs:
                 for ref in refs:
                     # ReferenceInSymbol has .symbol property with the actual symbol dict
-                    symbol = ref.symbol if hasattr(ref, 'symbol') else ref
+                    symbol = ref.symbol if hasattr(ref, "symbol") else ref
                     assert "name" in symbol, "Reference should have name"
                     assert "location" in symbol, "Reference should have location"
         except (signal.ItimerError, OSError):
@@ -582,6 +569,7 @@ class TestMql4LanguageServerSymbolHierarchy:
         file_path = "ExpertAdvisor.mq4"
 
         timed_out = [False]
+
         def timeout_handler(signum: int, frame: Any) -> None:
             timed_out[0] = True
 
@@ -673,7 +661,6 @@ class TestMql4LanguageServerFileContent:
         assert isinstance(content, str), "Should return file content as string"
         assert len(content) > 0, "File should have content"
 
-
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_open_file(self, language_server: SolidLanguageServer) -> None:
         """Test opening a file for LSP operations."""
@@ -698,6 +685,7 @@ class TestMql4LanguageServerCompletions:
         file_path = "ExpertAdvisor.mq4"
 
         timed_out = [False]
+
         def timeout_handler(signum: int, frame: Any) -> None:
             timed_out[0] = True
 
@@ -726,7 +714,7 @@ class TestMql4LanguageServerCompletions:
             # MQL4 LSP may return list or dict depending on implementation
             # Both are valid LSP responses
             if completions is not None:
-                assert isinstance(completions, (list, dict)), f"Completions should be list or dict, got {type(completions)}"
+                assert isinstance(completions, list | dict), f"Completions should be list or dict, got {type(completions)}"
         except NotImplementedError:
             pytest.skip("request_completions not implemented in SolidLanguageServer")
         except Exception as e:
@@ -741,6 +729,7 @@ class TestMql4LanguageServerCompletions:
         file_path = "ExpertAdvisor.mq4"
 
         timed_out = [False]
+
         def timeout_handler(signum: int, frame: Any) -> None:
             timed_out[0] = True
 
@@ -756,7 +745,7 @@ class TestMql4LanguageServerCompletions:
                 pytest.skip("Completions request timed out")
 
             if completions is not None:
-                assert isinstance(completions, (list, dict)), f"Completions should be list or dict, got {type(completions)}"
+                assert isinstance(completions, list | dict), f"Completions should be list or dict, got {type(completions)}"
         except NotImplementedError:
             pytest.skip("request_completions not implemented in SolidLanguageServer")
         except Exception as e:
@@ -774,7 +763,7 @@ class TestMql4LanguageServerEdgeCases:
         invalid_path = "NonExistentFile.mq4"
 
         # Should handle gracefully
-        with pytest.raises(Exception):
+        with pytest.raises((FileNotFoundError, ValueError, RuntimeError)):
             language_server.request_document_symbols(invalid_path)
 
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
@@ -872,8 +861,6 @@ class TestMql4LanguageServerPerformance:
         assert "OnStart" in script_names or len(script_names) > 0
 
 
-
-
 @pytest.mark.mql4
 class TestMql4Capabilities:
     """Test that MQL4 LSP correctly reports and implements capabilities."""
@@ -934,6 +921,7 @@ class TestMql4Capabilities:
         file_path = "ExpertAdvisor.mq4"
 
         timed_out = [False]
+
         def timeout_handler(signum: int, frame: Any) -> None:
             timed_out[0] = True
 
@@ -991,6 +979,7 @@ class TestMql4Capabilities:
         # All core capabilities should work
         failed = [k for k, v in results.items() if not v]
         assert not failed, f"Failed capabilities: {failed}"
+
 
 @pytest.mark.mql4
 class TestMql4LanguageServerLSPCompliance:
@@ -1093,7 +1082,7 @@ class TestMql4LanguageServerIncludeFiles:
 
         # Find a call to an include function
         symbols = language_server.request_document_symbols(ea_file).get_all_symbols_and_roots()
-        symbol_names = [s.get("name", "") for s in symbols[0]] if symbols else []
+        del symbols  # Placeholder: test needs implementation
 
         # If EA uses functions from includes, find references to them
         # (This is more of an integration test)
@@ -1119,6 +1108,7 @@ class TestMql4LanguageServerStructAndClassSymbols:
             if buf in symbol_names:
                 # Verify it has proper range
                 buf_symbol = next((s for s in root_symbols if s.get("name") == buf), None)
+                assert buf_symbol is not None, f"{buf} should exist"
                 assert "range" in buf_symbol, f"{buf} should have range"
                 assert "selectionRange" in buf_symbol, f"{buf} should have selectionRange"
 
@@ -1137,6 +1127,7 @@ class TestMql4LanguageServerStructAndClassSymbols:
         for inp in input_names:
             if inp in symbol_names:
                 inp_symbol = next((s for s in root_symbols if s.get("name") == inp), None)
+                assert inp_symbol is not None, f"{inp} should exist"
                 assert "kind" in inp_symbol, f"{inp} should have kind"
 
 

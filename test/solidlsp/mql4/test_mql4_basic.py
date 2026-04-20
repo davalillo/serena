@@ -6,7 +6,6 @@ like request_references, request_definition, and request_document_symbols
 using the test repository.
 """
 
-
 import pytest
 
 from solidlsp import SolidLanguageServer
@@ -80,10 +79,7 @@ class TestMql4LanguageServerBasics:
 
         # Check for expected helper functions
         symbol_names = [s.get("name", "") for s in symbols[0]]
-        expected_functions = [
-            "CalculateSMA", "CalculateEMA", "CalculateRSI",
-            "CalculateBollingerUpper", "CalculateBollingerLower"
-        ]
+        expected_functions = ["CalculateSMA", "CalculateEMA", "CalculateRSI", "CalculateBollingerUpper", "CalculateBollingerLower"]
         for func in expected_functions:
             assert func in symbol_names, f"Expected function {func} not found in symbols"
 
@@ -236,8 +232,14 @@ class TestMql4LanguageServerBasics:
         # Check for different types of symbols
         symbol_names = [s.get("name", "") for s in symbols[0]]
         expected_symbols = [
-            "UpperBandBuffer", "LowerBandBuffer", "MiddleBandBuffer", "SignalBuffer",
-            "Period", "Deviation", "OnInit", "OnCalculate"
+            "UpperBandBuffer",
+            "LowerBandBuffer",
+            "MiddleBandBuffer",
+            "SignalBuffer",
+            "Period",
+            "Deviation",
+            "OnInit",
+            "OnCalculate",
         ]
 
         for sym in expected_symbols:
@@ -355,10 +357,7 @@ class TestMql4LanguageServerBasics:
         # We verify it's not 1-indexed by checking it's NOT equal to the 1-indexed expected line
         # A 1-indexed OnInit at line 21 would give us start_line == 21
         # A correctly 0-indexed OnInit at line 21 would give us start_line == 20
-        assert start_line != 21, (
-            f"Line {start_line} appears to be 1-indexed. "
-            "LSP 3.17 requires 0-indexed lines. Got: {start_line}"
-        )
+        assert start_line != 21, f"Line {start_line} appears to be 1-indexed. LSP 3.17 requires 0-indexed lines. Got: {{start_line}}"
 
     @pytest.mark.parametrize("language_server", [Language.MQL4], indirect=True)
     def test_symbol_ranges_consistency(self, language_server: SolidLanguageServer) -> None:
@@ -380,9 +379,7 @@ class TestMql4LanguageServerBasics:
                 end_line = r["end"]["line"]
 
                 # Verify start <= end
-                assert start_line <= end_line, (
-                    f"Symbol {symbol.get('name', 'unknown')}: start_line ({start_line}) > end_line ({end_line})"
-                )
+                assert start_line <= end_line, f"Symbol {symbol.get('name', 'unknown')}: start_line ({start_line}) > end_line ({end_line})"
 
                 # Verify both are non-negative
                 assert start_line >= 0, f"Symbol {symbol.get('name', 'unknown')}: start_line is negative ({start_line})"
@@ -429,10 +426,7 @@ class TestMql4LanguageServerBasics:
         symbols = language_server.request_document_symbols(file_path).get_all_symbols_and_roots()
 
         # Find a simple function (NormalizeTPSell should be a simple function)
-        normalize_tp_sell = next(
-            (s for s in symbols[0] if s.get("name") == "NormalizeTPSell"),
-            None
-        )
+        normalize_tp_sell = next((s for s in symbols[0] if s.get("name") == "NormalizeTPSell"), None)
 
         if normalize_tp_sell is None:
             # Skip if not found (might not exist in this file)
@@ -443,15 +437,10 @@ class TestMql4LanguageServerBasics:
         sel_end = normalize_tp_sell["selectionRange"]["end"]["line"]
 
         # Selection range should be a single line (the declaration)
-        assert sel_start == sel_end, (
-            f"NormalizeTPSell selectionRange should be single line: start={sel_start}, end={sel_end}"
-        )
+        assert sel_start == sel_end, f"NormalizeTPSell selectionRange should be single line: start={sel_start}, end={sel_end}"
 
         # Verify 0-indexed (not 1-indexed)
         # If this function is at line 18686 (1-indexed), a 1-indexed LSP would return 18686
         # A correct 0-indexed LSP would return 18685
         # We verify by checking it doesn't match the 1-indexed line number
-        assert sel_start != 18686, (
-            f"Line {sel_start} appears to be 1-indexed. "
-            "LSP 3.17 requires 0-indexed lines."
-        )
+        assert sel_start != 18686, f"Line {sel_start} appears to be 1-indexed. LSP 3.17 requires 0-indexed lines."

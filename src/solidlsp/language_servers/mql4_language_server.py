@@ -34,9 +34,7 @@ class Mql4LanguageServer(SolidLanguageServer):
     and provides comprehensive MQL4 language features.
     """
 
-    def __init__(
-        self, config: LanguageServerConfig, repository_root_path: str, solidlsp_settings: SolidLSPSettings
-    ):
+    def __init__(self, config: LanguageServerConfig, repository_root_path: str, solidlsp_settings: SolidLSPSettings):
         """
         Creates a Mql4LanguageServer instance. This class is not meant to be instantiated directly.
         Use LanguageServer.create() instead.
@@ -51,6 +49,7 @@ class Mql4LanguageServer(SolidLanguageServer):
         )
         self.server_ready = threading.Event()
         self.service_ready_event = threading.Event()
+        self.completions_available = threading.Event()
 
     def _ensure_server_ready(self) -> None:
         """
@@ -60,6 +59,7 @@ class Mql4LanguageServer(SolidLanguageServer):
         if not self.server_ready.is_set():
             log.log(logging.WARNING, "MQL4 LSP server not ready, waiting for initialization...")
             import time
+
             start_time = time.time()
             timeout = 30  # Additional 30 seconds wait
             while not self.server_ready.is_set() and (time.time() - start_time) < timeout:
@@ -92,9 +92,7 @@ class Mql4LanguageServer(SolidLanguageServer):
         return Language.MQL4
 
     @classmethod
-    def _setup_runtime_dependencies(
-        cls, config: LanguageServerConfig, solidlsp_settings: SolidLSPSettings
-    ) -> str:
+    def _setup_runtime_dependencies(cls, config: LanguageServerConfig, solidlsp_settings: SolidLSPSettings) -> str:
         """
         Setup runtime dependencies for Mql4LanguageServer and return the command to start the server.
         Downloads the appropriate binary from GitHub releases if not already installed.
@@ -193,7 +191,10 @@ class Mql4LanguageServer(SolidLanguageServer):
                     return cls._verify_and_set_executable(mql4_ls_executable_path)
                 else:
                     log.log(logging.INFO, "[MQL4 LSP] Local binary outdated (checksum mismatch), downloading latest version...")
-                    log.log(logging.DEBUG, f"[MQL4 LSP] Local: {local_checksum[:16] if local_checksum else 'N/A'}... vs Latest: {expected_checksum[:16]}...")
+                    log.log(
+                        logging.DEBUG,
+                        f"[MQL4 LSP] Local: {local_checksum[:16] if local_checksum else 'N/A'}... vs Latest: {expected_checksum[:16]}...",
+                    )
             else:
                 log.log(logging.WARNING, "[MQL4 LSP] Could not verify against latest release checksums, using cached version")
                 return cls._verify_and_set_executable(mql4_ls_executable_path)
@@ -353,26 +354,18 @@ class Mql4LanguageServer(SolidLanguageServer):
                     "synchronization": {
                         "didSave": True,
                     },
-                    "completion": {
-                        "completionItem": {
-                            "snippetSupport": True
-                        }
-                    },
-                    "hover": {
-                        "contentFormat": ["markdown", "plaintext"]
-                    },
+                    "completion": {"completionItem": {"snippetSupport": True}},
+                    "hover": {"contentFormat": ["markdown", "plaintext"]},
                     "definition": True,
                     "references": True,
                     "documentSymbol": True,
-                    "codeAction": {
-                        "codeActionKinds": ["quickfix"]
-                    }
+                    "codeAction": {"codeActionKinds": ["quickfix"]},
                 },
                 "workspace": {
                     "workspaceFolders": True,
                     "symbol": {
                         "dynamicRegistration": False,
-                    }
+                    },
                 },
             },
             "processId": os.getpid(),
@@ -390,7 +383,7 @@ class Mql4LanguageServer(SolidLanguageServer):
 
     def _start_server(self) -> None:
         """
-        Starts the MQL4 Language Server, waits for the server to be ready and yields the LanguageServer instance.
+        Starts the MQL4 Language Server, waits for the server to be ready and yields the LanguageServer instance.  # noqa: D209
 
         Usage:
         ```

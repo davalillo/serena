@@ -181,7 +181,6 @@ def language_server(request: LanguageParamRequest):
 
     language = request.param
 
-
     # Show MQL4 LSP version if applicable
     if language == Language.MQL4:
         try:
@@ -189,31 +188,28 @@ def language_server(request: LanguageParamRequest):
             from solidlsp.settings import SolidLSPSettings
 
             mql4_ls_dir = os.path.join(
-                SolidLSPSettings(solidlsp_dir=SerenaPaths().serena_user_home_dir, project_data_relative_path=SERENA_MANAGED_DIR_NAME).ls_resources_dir,
+                SolidLSPSettings(
+                    solidlsp_dir=SerenaPaths().serena_user_home_dir, project_data_relative_path=SERENA_MANAGED_DIR_NAME
+                ).ls_resources_dir,
                 "Mql4LanguageServer",
-                "mql4-lsp"
+                "mql4-lsp",
             )
             mql4_ls_executable_path = os.path.join(mql4_ls_dir, "mql4-lsp-server")
 
             # Try to get version from binary
             try:
-                result = subprocess.run(
-                    [mql4_ls_executable_path, "--version"],
-                    check=False, capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                result = subprocess.run([mql4_ls_executable_path, "--version"], check=False, capture_output=True, text=True, timeout=5)
                 version_output = result.stdout.strip() or result.stderr.strip() or "unknown"
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print(f"MQL4 LSP Server Version: {version_output}")
                 print(f"Binary Path: {mql4_ls_executable_path}")
-                print(f"{'='*60}\n")
+                print(f"{'=' * 60}\n")
             except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError) as e:
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print("MQL4 LSP: Could not get version (binary may not exist or be inaccessible)")
                 print(f"Expected path: {mql4_ls_executable_path}")
                 print(f"Error: {e}")
-                print(f"{'='*60}\n")
+                print(f"{'=' * 60}\n")
         except Exception as e:
             print(f"\n[MQL4 LSP] Version check skipped: {e}")
 
@@ -226,6 +222,7 @@ def language_server(request: LanguageParamRequest):
     #     yield server
     # finally:
     #     server.stop()
+
 
 @contextmanager
 def project_context(language: Language, repo_root_override: str | None = None) -> Iterator[Project]:

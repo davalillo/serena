@@ -1179,7 +1179,29 @@ class SolidLanguageServer(ABC):
         request = self.ReferencesLocationRequest(self, relative_file_path, line, column)
         return request.execute()
 
-     def request_text_document_diagnostics(self, relative_file_path: str) -> list[ls_types.Diagnostic]:
+    def request_selection_range(
+        self,
+        relative_file_path: str,
+        positions: list[dict],
+    ) -> list[lsp_types.SelectionRange] | None:
+        """
+        Raise a [textDocument/selectionRange](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_selectionRange)
+        request to find selection ranges at given positions in a file.
+
+        :param relative_file_path: The relative path of the file
+        :param positions: List of positions, each a dict with 'line' and 'character' keys
+        :return: List of SelectionRange objects or None
+        """
+        if not self.server_started:
+            log.error("request_selection_range called before Language Server started")
+            raise SolidLSPException("Language Server not started")
+
+        with self.open_file(relative_file_path):
+            response = self._send_selection_range_request(relative_file_path, positions)
+
+        return response
+
+    def request_text_document_diagnostics(self, relative_file_path: str) -> list[ls_types.Diagnostic]:
         """
         Raise a [textDocument/diagnostic](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_diagnostic) request to the Language Server
         to find diagnostics for the given file. Wait for the response and return the result.
